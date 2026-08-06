@@ -122,75 +122,107 @@ const authMiddleware = validarAcessoTurma;
 // =============================
 
 app.post('/auth/login', async (req, res) => {
-    console.log("--- DEBUG LOGIN (v6.1 - DETALHADO) ---");
-    const { email, senha, password } = req.body;
-    const passInput = (senha || password || "").trim();
-    const emailInput = (email || "").trim().toLowerCase();
+    try {
+        console.log("--- DEBUG LOGIN (v6.1 - DETALHADO) ---");
 
-    console.log(`Recebido: Email=[${emailInput}], Senha=[${passInput}]`);
+        const { email, senha, password } = req.body || {};
 
-    const adminUser = await Admin.findOne({
-        email: emailInput,
-        password: passInput
-    });
+        const passInput = (senha || password || "").trim();
+        const emailInput = (email || "").trim().toLowerCase();
 
-    if (adminUser) {
-        console.log(`✅ Admin autenticado: ${adminUser.nome}`);
-        return res.json({
-            user: {
-                _id: adminUser._id,
-                nome: adminUser.nome,
-                email: adminUser.email,
-                cargo: 'principal',
-                role: 'admin'
+        console.log(`Recebido: Email=[${emailInput}], Senha=[${passInput}]`);
+
+        if (!emailInput || !passInput) {
+            return res.status(400).json({
+                error: "E-mail e senha são obrigatórios."
+            });
+        }
+
+        const adminUser = await Admin.findOne({
+            email: emailInput,
+            password: passInput
+        });
+
+        if (adminUser) {
+            console.log(`✅ Admin autenticado: ${adminUser.nome}`);
+
+            return res.json({
+                user: {
+                    _id: adminUser._id,
+                    nome: adminUser.nome,
+                    email: adminUser.email,
+                    cargo: 'principal',
+                    role: 'admin'
+                }
+            });
+        }
+
+        const turmas = await Turma.find();
+
+        console.log(`Buscando em ${turmas.length} turmas...`);
+
+        for (const t of turmas) {
+
+            const storedLiderEmail = (t.lider?.email || "").trim().toLowerCase();
+            const storedLiderPass = (t.lider?.senha || "").trim();
+
+            const storedViceEmail = (t.vice?.email || "").trim().toLowerCase();
+            const storedVicePass = (t.vice?.senha || "").trim();
+
+
+            if (storedLiderEmail === emailInput && storedLiderPass === passInput) {
+
+                console.log(`✅ Líder autenticado: ${t.lider.nome}`);
+
+                return res.json({
+                    user: {
+                        _id: t.id,
+                        nome: t.lider.nome,
+                        email: emailInput,
+                        cargo: 'líder',
+                        role: 'turma_admin',
+                        turmaId: t.id,
+                        turmaNome: t.nome
+                    }
+                });
             }
+
+
+            if (storedViceEmail === emailInput && storedVicePass === passInput) {
+
+                console.log(`✅ Vice-Líder autenticado: ${t.vice.nome}`);
+
+                return res.json({
+                    user: {
+                        _id: t.id,
+                        nome: t.vice.nome,
+                        email: emailInput,
+                        cargo: 'vice-líder',
+                        role: 'turma_admin',
+                        turmaId: t.id,
+                        turmaNome: t.nome
+                    }
+                });
+            }
+        }
+
+
+        console.log(`❌ Login falhou para: [${emailInput}]`);
+
+        return res.status(401).json({
+            error: "E-mail ou senha incorretos."
+        });
+
+
+    } catch (error) {
+
+        console.error("❌ Erro no login:", error);
+
+        return res.status(500).json({
+            error: "Erro interno no servidor."
         });
     }
-
-    const turmas = await Turma.find();
-    console.log(`Buscando em ${turmas.length} turmas...`);
-
-    for (const t of turmas) {
-        const storedLiderEmail = (t.lider?.email || "").trim().toLowerCase();
-        const storedLiderPass = (t.lider?.senha || "").trim();
-        const storedViceEmail = (t.vice?.email || "").trim().toLowerCase();
-        const storedVicePass = (t.vice?.senha || "").trim();
-
-        if (storedLiderEmail === emailInput && storedLiderPass === passInput) {
-            console.log(`✅ Líder autenticado: ${t.lider.nome} (Turma: ${t.nome})`);
-            return res.json({
-                user: {
-                    _id: t.id,
-                    nome: t.lider.nome,
-                    email: emailInput,
-                    cargo: 'líder',
-                    role: 'turma_admin',
-                    turmaId: t.id,
-                    turmaNome: t.nome
-                }
-            });
-        }
-
-        if (storedViceEmail === emailInput && storedVicePass === passInput) {
-            console.log(`✅ Vice-Líder autenticado: ${t.vice.nome} (Turma: ${t.nome})`);
-            return res.json({
-                user: {
-                    _id: t.id,
-                    nome: t.vice.nome,
-                    email: emailInput,
-                    cargo: 'vice-líder',
-                    role: 'turma_admin',
-                    turmaId: t.id,
-                    turmaNome: t.nome
-                }
-            });
-        }
-    }
-
-    console.log(`❌ Login falhou para: [${emailInput}]`);
-    res.status(401).json({ error: "E-mail ou senha incorretos." });
 });
-
 app.put('/admin/alterar-senha', async (req, res) => {
     try {
         console.log("=== ALTERANDO SENHA ===");
