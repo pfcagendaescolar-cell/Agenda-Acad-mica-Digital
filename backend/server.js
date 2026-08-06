@@ -11,7 +11,14 @@ const Admin = require("./models/admin");
 const app = express();
 
 // Middlewares Globais
-app.use(cors());
+app.use(cors({
+    origin: [
+        "http://localhost:3000",
+        "https://agenda-academica-backend-w48m.onrender.com"
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "x-usuario-role", "x-usuario-turma", "x-usuario-email", "x-admin-auth"]
+}));
 app.use(express.json());
 
 // Servir frontend estático

@@ -3,9 +3,7 @@
  * Gerencia turmas + eventos (por turma e gerais)
  */
 
-// ✅ API_BASE sempre é localhost:3000
-const API_BASE = 'http://localhost:3000';
-
+const API_BASE = 'https://agenda-academica-backend-w48m.onrender.com';
 // =============================
 // ESTADO GLOBAL
 // =============================
