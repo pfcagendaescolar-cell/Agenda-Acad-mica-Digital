@@ -3,10 +3,10 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const connectDB = require("./config/db");
-const Turma = require("./models/Turma");
-const Evento = require("./models/Evento");
-const Contato = require("./models/Contato");
-const Admin = require("./models/Admin");
+const Turma = require("./models/turma");
+const Evento = require("./models/evento");
+const Contato = require("./models/contato");
+const Admin = require("./models/admin");
 
 const app = express();
 
