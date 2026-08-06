@@ -170,8 +170,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch(`${API_BASE}/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, senha: password })
-                });
+                    body: JSON.stringify({
+                        email: email.trim(),
+                        senha: password.trim(),
+                        password: password.trim()
+                    })                });
 
                 const data = await res.json();
                 if (res.ok) {

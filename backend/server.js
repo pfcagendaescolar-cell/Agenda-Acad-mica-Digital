@@ -125,6 +125,9 @@ app.post('/auth/login', async (req, res) => {
     try {
         console.log("--- DEBUG LOGIN (v6.1 - DETALHADO) ---");
 
+        console.log("BODY RECEBIDO:");
+        console.log(req.body);
+        
         const { email, senha, password } = req.body || {};
 
         const passInput = (senha || password || "").trim();
