@@ -1,0 +1,18 @@
+[
+  {
+    "_id": "1779644382876",
+    "nome": "lulu",
+    "email": "luana@gmail.com",
+    "password": "oioi",
+    "cargo": "principal",
+    "status": "ativo"
+  },
+  {
+    "_id": "1779644493825",
+    "nome": "lulu",
+    "email": "luana123@gmail.com",
+    "password": "oioi",
+    "cargo": "secundario",
+    "status": "pendente"
+  }
+]

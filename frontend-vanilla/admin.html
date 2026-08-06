@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="pt-br" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin - Agenda Acadêmica IFPR</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="admin.css">
+    <style>
+        /* Estilos específicos para a tela de login integrada no admin.html */
+       
+        /* AJUSTE GLOBAL DE ESTRUTURA 
+   Garante que a página ocupe 100% da altura do navegador
+*/
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    display: flex;
+    flex-direction: column; /* Organiza Header, Main e Footer em linha vertical */
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+}
+
+/* O elemento <main> deve crescer para ocupar todo o espaço 
+   restante entre o header e o final da página 
+*/
+main#mainContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* CENTRALIZAÇÃO DA SEÇÃO DE LOGIN
+   Utiliza Flexbox para alinhar horizontal e verticalmente
+*/
+.auth-container {
+    flex: 1;               /* Ocupa todo o espaço disponível no <main> */
+    display: flex;
+    align-items: center;    /* Centraliza Verticalmente */
+    justify-content: center; /* Centraliza Horizontalmente */
+    padding: 20px;          /* Respiro para telas pequenas (mobile) */
+    min-height: 0 !important; /* Remove o cálculo antigo que causava desalinhamento */
+    box-sizing: border-box;
+}
+
+/* CARD DE LOGIN 
+   Mantém o design original, mas garante responsividade
+*/
+.auth-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px;
+    width: 100%;
+    max-width: 450px; /* Largura máxima no Desktop */
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
+    margin: auto;     /* Reforço de centralização para navegadores antigos */
+}
+
+/* CORREÇÃO PARA O DASHBOARD
+   Quando o usuário logar, não queremos que o dashboard fique centralizado 
+   verticalmente como o login, por isso forçamos o alinhamento ao topo 
+*/
+.admin-container {
+    margin: 30px auto !important;
+    width: 100%;
+    max-width: 1000px;
+    padding: 0 20px;
+    align-self: flex-start; /* Alinha o conteúdo do admin no topo após o login */
+}
+
+/* Ajustes de espaçamento interno do formulário */
+.input-group {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.input-group label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-main);
+}
+
+.input-group input {
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-body);
+    color: var(--text-main);
+}
+        .auth-container {
+            padding: 60px 0;
+            display: flex;
+            justify-content: center;
+            min-height: calc(100vh - 400px);
+        }
+
+        .auth-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
+        }
+
+        .auth-title {
+            color: var(--primary);
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .auth-subtitle {
+            text-align: center;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            opacity: 0.8;
+            margin-bottom: 30px;
+        }
+
+        .auth-tabs {
+            display: flex;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 30px;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-main);
+            opacity: 0.5;
+            transition: 0.3s;
+            font-size: 1rem;
+        }
+
+        .auth-tab.active {
+            opacity: 1;
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+            margin-bottom: -2px;
+        }
+
+        .auth-form {
+            display: none;
+        }
+
+        .auth-form.active {
+            display: block;
+        }
+
+        .btn-auth {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background: var(--primary);
+            color: white;
+            font-weight: bold;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 15px;
+        }
+
+        .btn-auth:hover {
+            opacity: 0.95;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(50, 160, 65, 0.2);
+        }
+
+        .message-box {
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
+            text-align: center;
+        }
+
+        .message-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+            border: 1px solid #10b981;
+        }
+
+        .message-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+            border: 1px solid #ef4444;
+        }
+
+        /* Estilos do Dashboard Admin */
+        .admin-container {
+            margin: 30px auto;
+            max-width: 1000px;
+            padding: 0 20px;
+        }
+
+        .admin-tabs-nav {
+            display: flex;
+            background: var(--bg-card);
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .admin-tab-btn {
+            flex: 1;
+            padding: 15px 10px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            transition: 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .admin-tab-btn i {
+            font-size: 1.2rem;
+        }
+
+        .admin-tab-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Melhorias no Sidebar (Abas) */
+        .admin-tabs-nav {
+            padding: 8px;
+            gap: 8px;
+        }
+
+        .admin-tab-btn {
+            flex-direction: row;
+            justify-content: center;
+            padding: 12px 18px;
+            border-radius: 10px;
+            gap: 10px;
+            font-size: 0.95rem;
+        }
+
+        .admin-tab-btn span {
+            font-size: 1.2rem;
+        }
+
+        #menuIcon {
+            display: none !important;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        #menuIcon.show-mobile {
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            margin-left: 0;
+        }
+
+        #menuIcon.show-mobile .nav-ham-line {
+            width: 22px;
+            height: 2px;
+            background: var(--text-main);
+            border-radius: 2px;
+        }
+
+        /* Estilos de Card de Evento/Contato */
+        .evento-card,
+        .contato-card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .evento-card:hover,
+        .contato-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .evento-card-info strong {
+            font-size: 1.1rem;
+            color: var(--primary);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .evento-card-info small {
+            color: var(--text-main);
+            opacity: 0.8;
+            font-weight: 500;
+        }
+
+        .evento-card-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .evento-card-actions button {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 1rem;
+        }
+
+        .evento-card-actions button:hover {
+            background: var(--bg-body);
+            border-color: var(--primary);
+        }
+
+        .evento-cat-evento {
+            border-left: 5px solid var(--cat-evento);
+        }
+
+        /* Estilos específicos para Turma Card Simplificado */
+        .turma-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .turma-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary);
+            background: var(--primary);
+        }
+
+        .turma-card:hover .turma-header h3,
+        .turma-card:hover .turma-info p,
+        .turma-card:hover .turma-header span {
+            color: white !important;
+        }
+
+        .turma-card .turma-header h3,
+        .turma-card .turma-info p {
+            transition: color 0.2s ease;
+        }
+
+        /* Modal de Visualização de Turma */
+        .turma-view-details {
+            padding: 20px 0;
+        }
+
+        .info-row {
+            margin-bottom: 12px;
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-main);
+        }
+
+        .info-row strong {
+            color: var(--primary);
+            width: 100px;
+            display: inline-block;
+        }
+
+        .modal-footer-actions {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .contato-card-style {
+            border-left: 5px solid #8b5cf6;
+        }
+
+        .admin-section {
+            display: none;
+            width: 100%;
+        }
+
+        .admin-section.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Estilos de Card */
+        .admin-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 25px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            margin-bottom: 25px;
+        }
+
+        .admin-card-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            #menuIcon.show-mobile {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 44px;
+                height: 44px;
+                margin-left: 0;
+            }
+
+            .admin-tabs-nav {
+                position: fixed;
+                top: 0;
+                left: 0;
+                z-index: 1100;
+                width: min(320px, 90%);
+                max-width: 320px;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                padding: 26px 18px;
+                background: #ffffff;
+                border-right: 1px solid rgba(15, 23, 42, 0.08);
+                box-shadow: 6px 0 32px rgba(15, 23, 42, 0.14);
+                transform: translateX(-110%);
+                transition: transform 0.25s ease;
+                overflow-y: auto;
+            }
+
+            .admin-tabs-nav.open {
+                transform: translateX(0);
+            }
+
+            .admin-tabs-nav::before {
+                content: "Menu";
+                font-size: 1rem;
+                font-weight: 700;
+                color: var(--text-main);
+                padding-bottom: 10px;
+                border-bottom: 1px solid var(--border);
+                margin-bottom: 6px;
+            }
+
+            .admin-tab-btn {
+                width: 100%;
+                justify-content: flex-start;
+                padding: 14px 16px;
+                font-size: 0.95rem;
+                border-radius: 14px;
+                background: transparent;
+                border: 1px solid transparent;
+            }
+
+            .admin-tab-btn.active {
+                background: rgba(16, 185, 129, 0.12);
+                color: var(--primary);
+            }
+
+            .admin-tab-btn span {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .header-brand-inner {
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+
+            .header-auth-info {
+                display: none;
+            }
+
+            #menuIcon {
+                order: 1;
+            }
+
+            .header-logo {
+                order: 2;
+            }
+
+            .header-titles {
+                order: 3;
+                width: 100%;
+                max-width: calc(100% - 90px);
+            }
+
+            .admin-tabs-nav + .admin-container {
+                margin-top: 72px;
+            }
+        }
+
+        /* Botões Estilizados */
+        .btn-new-turma {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(50, 160, 65, 0.2);
+            margin-bottom: 25px;
+        }
+
+        .btn-new-turma:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(50, 160, 65, 0.3);
+        }
+
+        .admin-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn-edit,
+        .btn-delete,
+        .btn-eventos {
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.88rem;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: white;
+        }
+
+        .btn-edit {
+            background: #3b82f6;
+        }
+
+        .btn-edit:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+
+        .btn-delete {
+            background: #ef4444;
+        }
+
+        .btn-delete:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+        }
+
+        .btn-eventos {
+            background: #f59e0b;
+        }
+
+        .btn-eventos:hover {
+            background: #d97706;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="menuOverlay" class="menu-overlay"></div>
+
+    <nav id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h3>Configurações <span style="font-size: 1.1rem; margin-left: 5px;">⚙️</span></h3>
+            <button id="closeSidebar" class="close-menu-btn">&times;</button>
+        </div>
+        <ul class="menu-items">
+            <li id="loginArea" style="display:none;">
+                <button id="btnLogin" class="btn-sidebar">🔐 Acesso Líder (Login)</button>
+            </li>
+            <li id="adminStatus">
+                <div class="user-card">
+                    <p>Olá, <strong id="userNameDisplay">Administrador</strong></p>
+                    <button class="btn-sidebar btn-logout btn-logout-action">🚪 Sair da conta</button>
+                </div>
+            </li>
+            <li class="menu-item">
+                <div class="menu-info">
+                    <strong>Modo Noturno</strong>
+                    <span>Alternar cores do sistema</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="themeToggle">
+                    <span class="slider round"></span>
+                </label>
+            </li>
+            <hr class="separator">
+            <li>
+                <a href="index.html" class="btn-sidebar"
+                    style="display: block; text-align: center; text-decoration: none;">Voltar ao Site Público</a>
+            </li>
+        </ul>
+    </nav>
+
+    <header class="header-ifpr">
+        <div class="header-top-bar">
+            <div class="header-top-inner">
+                <span class="top-bar-left">INSTITUTO FEDERAL DO PARANÁ</span>
+                <span class="top-bar-right">CAMPUS ASSIS CHATEAUBRIAND</span>
+            </div>
+        </div>
+        <div class="header-brand-bar">
+            <div class="header-brand-inner">
+                <div class="header-logo"><img src="imagens/logoif.png"></div>
+                <div class="header-titles">
+                    <h1 class="header-title-main">Agenda Acadêmica Digital</h1>
+                    <p class="header-title-sub">Painel Administrativo</p>
+                </div>
+                <div class="header-auth-info" id="userInfoHeader"
+                    style="margin-left: auto; display: none; align-items: center; gap: 15px;">
+                    <div style="text-align: right;">
+                        <div id="adminUserName" style="font-weight: 700; font-size: 0.9rem; color: var(--primary);">
+                            Admin</div>
+                        <div id="adminUserRole" style="font-size: 0.75rem; opacity: 0.7; color: var(--text-main);">
+                            Carregando...</div>
+                    </div>
+                    <button class="btn-delete btn-logout-action"
+                        style="padding: 5px 10px; font-size: 0.8rem; flex: none;">Sair</button>
+                </div>
+                <button id="menuIcon" class="nav-mobile-btn" aria-label="Abrir menu">
+                    <span class="nav-ham-line"></span>
+                    <span class="nav-ham-line"></span>
+                    <span class="nav-ham-line"></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main id="mainContent">
+
+        <section id="adminLoginSection" class="auth-container">
+            <div class="auth-card">
+                <h2 class="auth-title">Acesso Restrito</h2>
+                <p class="auth-subtitle">Entre com sua conta administrativa</p>
+
+                <div id="authMessage" class="message-box"></div>
+
+                <div class="auth-tabs">
+                    <button id="tabLogin" class="auth-tab active" onclick="switchAuthTab('login')">Entrar</button>
+                </div>
+
+                <form id="loginForm" class="auth-form active">
+                    <div class="input-group">
+                        <label>E-mail:</label>
+                        <input type="email" id="loginEmail" required placeholder="seu@email.com">
+                    </div>
+                    <div class="input-group">
+                        <label>Senha:</label>
+                        <input type="password" id="loginPassword" required placeholder="••••••••">
+                    </div>
+                    <button type="submit" class="btn-auth">Entrar no Painel</button>
+                </form>
+
+            </div>
+        </section>
+
+        <div id="adminDashboardSection" class="admin-container" style="display: none;">
+
+            <nav class="admin-tabs-nav">
+                <button class="admin-tab-btn active" data-tab="turmas">
+                    <span>📋</span> Turma
+                </button>
+                <button class="admin-tab-btn" data-tab="geral">
+                    <span>🏛️</span> Geral
+                </button>
+                <button class="admin-tab-btn" data-tab="contatos">
+                    <span>📞</span> Contatos
+                </button>
+                <button class="admin-tab-btn" data-tab="conta" id="tabConta">
+                    <span>👤</span> Minha Conta
+                </button>
+            </nav>
+
+            <section id="secTurmas" class="admin-section active">
+                <div id="subListaTurmas">
+                    <button id="btnNovaTurma" class="btn-new-turma">+ Criar Nova Turma</button>
+                    <div id="turmasList"></div>
+                </div>
+
+                <div id="subEventosTurma" style="display:none;">
+                    <button id="btnVoltarListaTurmas" class="btn-voltar-admin">← Voltar para Turmas</button>
+                    <div class="eventos-section-title">
+                        <span>📅 Eventos de: </span>
+                        <span id="eventosTurmaNome">Turma</span>
+                    </div>
+                    <button id="btnNovoEventoTurma" class="btn-novo-evento">+ Novo Evento</button>
+                    <div id="eventosListaTurma"></div>
+                </div>
+            </section>
+
+            <section id="secGeral" class="admin-section">
+                <div class="admin-card">
+                    <h2 class="admin-card-title">🏛️ Agenda Geral Institucional</h2>
+                    <p style="font-size:0.85rem; opacity:0.8; margin-bottom:20px;">
+                        Eventos criados aqui aparecem em <strong>todas</strong> as turmas.
+                    </p>
+                    <button id="btnNovoEventoGeral" class="btn-novo-evento">+ Novo Evento Geral</button>
+                </div>
+                <div id="eventosListaGeral"></div>
+            </section>
+
+            <section id="secContatos" class="admin-section">
+                <div class="admin-card">
+                    <h2 class="admin-card-title">📞 Contatos Institucionais</h2>
+                    <p style="font-size:0.85rem; opacity:0.8; margin-bottom:20px;">
+                        Gerencie os contatos e setores disponíveis para os alunos.
+                    </p>
+                    <button id="btnNovoContato" class="btn-new-turma">+ Novo Contato</button>
+                </div>
+                <div id="contatosListaAdmin"></div>
+            </section>
+
+            <section id="secConta" class="admin-section">
+
+                <div class="admin-card">
+
+                    <h2 class="admin-card-title">
+                        👤 Editar Dados Pessoais
+                    </h2>
+
+                    <p style="color: #666; margin-bottom: 20px; font-size: 0.9rem;">
+                        Atualize seu nome e e-mail de acesso ao painel administrativo.
+                    </p>
+
+                    <form id="formEditPerfil">
+                        <div class="input-group">
+                            <label for="editNome">Nome:</label>
+                            <input type="text" id="editNome" placeholder="Digite seu nome" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="editEmail">E-mail:</label>
+                            <input type="email" id="editEmail" placeholder="Digite seu e-mail" required>
+                        </div>
+
+                        <div class="input-group"
+                            style="background: rgba(var(--primary-rgb), 0.05); padding: 15px; border-radius: 10px;">
+                            <label for="editPassConfirm">🔒 Confirmar senha atual:</label>
+                            <input type="password" id="editPassConfirm" placeholder="Digite sua senha atual para confirmar" required>
+                        </div>
+
+                        <button type="submit" class="btn-save" style="width: 100%; margin-top: 15px;">
+                            Salvar alterações
+                        </button>
+                    </form>
+                </div>
+
+                <div class="admin-card">
+                    <h2 class="admin-card-title">
+                        🔐 Alterar Senha
+                    </h2>
+
+                    <p style="color: #666; margin-bottom: 20px; font-size: 0.9rem;">
+                        Altere sua senha de acesso ao painel administrativo.
+                    </p>
+
+                    <form id="formEditSenha">
+                        <div class="input-group">
+                            <label for="passAtual">Senha atual:</label>
+                            <input type="password" id="passAtual" placeholder="Digite sua senha atual" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="passNova">Nova senha:</label>
+                            <input type="password" id="passNova" placeholder="Digite a nova senha" minlength="4" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="passConfirma">Confirmar nova senha:</label>
+                            <input type="password" id="passConfirma" placeholder="Repita a nova senha" required>
+                        </div>
+
+                        <button type="submit" class="btn-save" style="width: 100%; margin-top: 15px;">
+                            Atualizar Senha
+                        </button>
+                    </form>
+                </div>
+
+                <div id="accountMessage" class="message-box" style="display:none; margin-top:20px;"></div>
+
+            </section>
+
+        </div>
+    </main>
+
+    <div id="turmaViewModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Informações da Turma</h3>
+                <button class="close-modal-btn" id="closeTurmaViewModal">&times;</button>
+            </div>
+            <div id="turmaViewContent" class="turma-view-details">
+                </div>
+            <div class="modal-footer-actions">
+                <button id="btnViewEdit" class="btn-edit">✏️ Editar Turma</button>
+                <button id="btnViewDelete" class="btn-delete">🗑️ Excluir Turma</button>
+                <button id="btnViewEventos" class="btn-eventos">📅 Gerenciar Eventos</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="turmaModal" class="modal">
+        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3 id="modalTurmaTitle">Nova Turma</h3>
+                <button class="close-modal-btn" id="closeTurmaModal">&times;</button>
+            </div>
+            <form id="turmaForm">
+                <input type="hidden" id="turmaId">
+                <h4 class="form-section-title">Dados da Turma</h4>
+                <div class="input-group"><label>Nome:</label><input type="text" id="tNome" required></div>
+                <div class="input-group"><label>Curso:</label><input type="text" id="tCurso" required></div>
+                <div class="input-group"><label>Ano:</label><input type="number" id="tAno" required min="2020"></div>
+                <h4 class="form-section-title">Líder</h4>
+                <div class="input-group"><label>Nome Líder:</label><input type="text" id="liderNome" required></div>
+                <div class="input-group"><label>Email Líder:</label><input type="email" id="liderEmail" required></div>
+                <div class="input-group"><label>Senha Líder:</label><input type="text" id="liderSenha" required></div>
+                <h4 class="form-section-title">Vice-Líder</h4>
+                <div class="input-group"><label>Nome Vice:</label><input type="text" id="viceNome" required></div>
+                <div class="input-group"><label>Email Vice:</label><input type="email" id="viceEmail" required></div>
+                <div class="input-group"><label>Senha Vice:</label><input type="text" id="viceSenha" required></div>
+                <button type="submit" class="btn-save">Salvar Turma</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="eventoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalEventoTitle">Novo Evento</h3>
+                <button class="close-modal-btn" id="closeEventoModal">&times;</button>
+            </div>
+            <form id="eventoForm">
+                <input type="hidden" id="eventoId">
+                <input type="hidden" id="eventoTurmaId">
+                <div class="input-group"><label>Título:</label><input type="text" id="evTitulo" required></div>
+                <div class="input-group">
+                    <label>Categoria:</label>
+                    <select id="evTipo" required>
+                        <option value="prova">Prova</option>
+                        <option value="trabalho">Trabalho</option>
+                        <option value="tarefa">Tarefa</option>
+                        <option value="evento">Evento Inst.</option>
+                    </select>
+                </div>
+                <div class="input-group"><label>Data:</label><input type="date" id="evData" required></div>
+                <div class="input-group"><label>Horário:</label><input type="time" id="evHora"></div>
+                <div class="input-group"><label>Descrição:</label><textarea id="evDescricao" rows="3"></textarea></div>
+                <button type="submit" class="btn-save">Salvar Evento</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="contatoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalContatoTitle">Novo Contato</h3>
+                <button class="close-modal-btn" id="closeContatoModal">&times;</button>
+            </div>
+            <form id="contatoForm">
+                <input type="hidden" id="contatoId">
+                <div class="input-group"><label>Nome/Setor:</label><input type="text" id="ctNome" required></div>
+                <div class="input-group"><label>Setor:</label><input type="text" id="ctSetor" required></div>
+                <div class="input-group"><label>Email:</label><input type="email" id="ctEmail" required></div>
+                <div class="input-group"><label>Telefone:</label><input type="tel" id="ctTelefone"></div>
+                <div class="input-group"><label>Descrição:</label><textarea id="ctDescricao" rows="3"></textarea></div>
+                <button type="submit" class="btn-save">Salvar Contato</button>
+            </form>
+        </div>
+    </div>
+
+    
+    <footer class="footer-ifpr">
+        <div class="footer-main">
+            <div class="footer-inner">
+
+                <div class="footer-col">
+                    <h4 class="footer-col-title">Agenda Acadêmica Digital</h4>
+                    <p class="footer-col-text">
+                        Sistema acadêmico desenvolvido para organização e acompanhamento de eventos escolares, provas,
+                        trabalhos e atividades do IFPR – Campus Assis Chateaubriand.
+                    </p>
+                </div>
+
+                <div class="footer-col">
+                    <h4 class="footer-col-title">Navegação</h4>
+                    <ul class="footer-nav">
+                        <li><a href="#" onclick="navigateToHome()">Início</a></li>
+                        <li><a href="#turmasSelection" onclick="navigateToHome()">Turmas</a></li>
+                        <li><a href="#" onclick="navigateToAbout()">Sobre o Projeto</a></li>
+                        <li><a href="#" onclick="navigateToContacts()">Contatos</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-col">
+                    <h4 class="footer-col-title">Institucional</h4>
+                    <ul class="footer-nav">
+                        <li>IFPR – Campus Assis Chateaubriand</li>
+                        <li>
+                            <a href="https://ifpr.edu.br/" target="_blank" rel="noopener noreferrer">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                    <polyline points="15 3 21 3 21 9" />
+                                    <line x1="10" y1="14" x2="21" y2="3" />
+                                </svg>
+                                Site Oficial IFPR
+                            </a>
+                        </li>
+                        <li>
+                            <a href="https://www.instagram.com/ifpr.assis/" target="_blank" rel="noopener noreferrer">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+                                    fill="currentColor" aria-hidden="true">
+                                    <path
+                                        d="M12 2.163c3.204 0 3.584.012 4.85.07 1.17.054 1.97.24 2.43.403a4.92 4.92 0 011.675 1.09 4.92 4.92 0 011.09 1.675c.163.46.35 1.26.403 2.43.058 1.266.07 1.646.07 4.85s-.012 3.584-.07 4.85c-.054 1.17-.24 1.97-.403 2.43a4.92 4.92 0 01-1.09 1.675 4.92 4.92 0 01-1.675 1.09c-.46.163-1.26.35-2.43.403-1.266.058-1.646.07-4.85.07s-3.584-.012-4.85-.07c-1.17-.054-1.97-.24-2.43-.403a4.92 4.92 0 01-1.675-1.09 4.92 4.92 0 01-1.09-1.675c-.163-.46-.35-1.26-.403-2.43C2.175 15.747 2.163 15.367 2.163 12s.012-3.584.07-4.85c.054-1.17.24-1.97.403-2.43a4.92 4.92 0 011.09-1.675 4.92 4.92 0 011.675-1.09c.46-.163 1.26-.35 2.43-.403C8.416 2.175 8.796 2.163 12 2.163zm0-2.163C8.741 0 8.332.014 7.052.072 5.775.13 4.9.333 4.14.63a7.07 7.07 0 00-2.563 1.67A7.07 7.07 0 00.63 4.86C.333 5.62.13 6.495.072 7.772.014 9.052 0 9.46 0 12c0 2.54.014 2.948.072 4.228.058 1.277.261 2.152.558 2.912a7.07 7.07 0 001.67 2.563 7.07 7.07 0 002.563 1.67c.76.297 1.635.5 2.912.558C9.052 23.986 9.46 24 12 24c2.54 0 2.948-.014 4.228-.072 1.277-.058 2.152-.261 2.912-.558a7.07 7.07 0 002.563-1.67 7.07 7.07 0 001.67-2.563c.297-.76.5-1.635.558-2.912C23.986 14.948 24 14.54 24 12c0-2.54-.014-2.948-.072-4.228-.058-1.277-.261-2.152-.558-2.912a7.07 7.07 0 00-1.67-2.563 7.07 7.07 0 00-2.563-1.67C18.38.333 17.505.13 16.228.072 14.948.014 14.54 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zm0 10.162a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+                                </svg>
+                                Instagram IFPR Assis
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <p>&copy; 2026 – IFPR Campus Assis Chateaubriand &middot; Projeto acadêmico – PFC</p>
+        </div>
+    </footer>
+
+    <script src="scriptadmin.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="pt-br" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agenda Acadêmica - IFPR Assis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="header-ifpr">
+
+    <div class="header-top-bar">
+        <div class="header-top-inner">
+            <span class="top-bar-left">INSTITUTO FEDERAL DO PARANÁ</span>
+            <span class="top-bar-right">CAMPUS ASSIS CHATEAUBRIAND</span>
+        </div>
+    </div>
+
+    <div class="header-brand-bar">
+        <div class="header-brand-inner">
+            <div class="header-logo">
+                <img src="imagens/logoif.png">
+            </div>
+            <div class="header-titles">
+                <h1 class="header-title-main">Agenda Acadêmica Digital</h1>
+                <p class="header-title-sub">IFPR – Campus Assis Chateaubriand</p>
+            </div>
+        </div>
+    </div>
+
+    <nav class="header-nav-bar" aria-label="Menu principal">
+        <div class="header-nav-inner">
+
+            <div class="navbar">
+                <button id="navMobileToggle" class="nav-mobile-btn menu-toggle" aria-label="Abrir menu" aria-expanded="false">
+                    <span class="nav-ham-line"></span>
+                    <span class="nav-ham-line"></span>
+                    <span class="nav-ham-line"></span>
+                </button>
+
+                <div id="info-lider" class="info-lider"></div>
+
+                <div class="navbar-right">
+                    <div class="nav-theme-toggle dark-mode-toggle">
+                        <label class="theme-switch" for="themeToggle" title="Alternar Modo Noturno">
+                            <input type="checkbox" id="themeToggle">
+                            <div class="theme-switch-icon">
+                                </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div id="navLinks" class="nav-links-wrapper">
+                <a href="#" class="nav-link" onclick="navigateToHome()">Início</a>
+                <a href="#turmasSelection" class="nav-link" onclick="navigateToHome()">Turmas</a>
+                <a href="#" class="nav-link" onclick="navigateToAbout()">Sobre o Projeto</a>
+                <a href="#" class="nav-link" onclick="navigateToContacts()">Contatos</a>
+                <a href="https://ifpr.edu.br/" target="_blank" class="nav-link">Site Oficial IFPR</a>
+
+                <a href="https://www.instagram.com/ifpr.assis/" target="_blank"
+                    class="nav-link nav-link-instagram">
+                    Instagram IFPR Assis
+                </a>
+
+                <button id="menuIcon" class="nav-config-btn">
+                    <span id="menuIconText">Login</span>
+                </button>
+            </div>
+
+    </nav>
+
+</header>
+
+    <script>
+        (function () {
+            var btn = document.getElementById('navMobileToggle');
+            var wrapper = document.getElementById('navLinks');
+            if (!btn || !wrapper) return;
+            btn.addEventListener('click', function () {
+                var open = wrapper.classList.toggle('nav-open');
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                btn.classList.toggle('nav-btn-active', open);
+            });
+            // Fecha o menu ao clicar num link
+            wrapper.querySelectorAll('.nav-link').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    wrapper.classList.remove('nav-open');
+                    btn.setAttribute('aria-expanded', 'false');
+                    btn.classList.remove('nav-btn-active');
+                });
+            });
+        })();
+    </script>
+
+    <main id="mainContent">
+
+        <section id="turmasSelection" class="container turmas-container">
+            <h2>Selecione sua Turma:</h2>
+            <div id="turmasList" class="turmas-list">
+                </div>
+        </section>
+
+        <section id="calendarApp" class="container" style="display: none;">
+            <div class="calendar-header-actions">
+                <button id="btnVoltarTurmas" class="btn-voltar">← Voltar para Turmas</button>
+                <h3 id="turmaNomeDisplay" class="turma-nome-display">Turma N/A</h3>
+            </div>
+            <section class="calendar-navigation">
+                <button id="prevMonth" class="nav-btn">&lt;</button>
+                <div class="month-title">
+                    <h2 id="monthDisplay">Mês</h2>
+                    <span id="yearDisplay">Ano</span>
+                </div>
+                <button id="nextMonth" class="nav-btn">&gt;</button>
+            </section>
+
+            <div class="calendar-card">
+                <div class="weekdays">
+                    <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                </div>
+                <div id="calendarGrid" class="calendar-grid"></div>
+            </div>
+
+            <div class="legend-container">
+                <div class="legend-item"><span class="dot off"></span> Fim de Semana</div>
+                <div class="legend-item"><span class="dot recesso"></span> Recesso Acadêmico</div>
+                <div class="legend-item"><span class="dot holiday-nat"></span> Feriado Nacional</div>
+                <div class="legend-item"><span class="dot holiday-est"></span> Feriado Estadual</div>
+                <div class="legend-item"><span class="dot prova"></span> Prova</div>
+                <div class="legend-item"><span class="dot trabalho"></span> Trabalho</div>
+                <div class="legend-item"><span class="dot tarefa"></span> Tarefa/Visto</div>
+                <div class="legend-item"><span class="dot evento"></span> Evento Inst.</div>
+            </div>
+        </section>
+
+        <section id="aboutScreen" class="about-screen-content" style="display: none;">
+            <div class="about-screen-inner">
+
+                <div class="about-content">
+                    <div class="about-section">
+                        <h3 class="about-subtitle">Agenda Acadêmica Digital</h3>
+                        <p class="about-text"><strong>Uma Solução de Organização e Acessibilidade para Estudantes do
+                                IFPR</strong></p>
+                    </div>
+
+                    <div class="about-section">
+                        <h4 class="about-subsection-title">📋 Informações Institucionais</h4>
+                        <ul class="about-list">
+                            <li><strong>Instituição:</strong> Instituto Federal do Paraná (IFPR)</li>
+                            <li><strong>Campus:</strong> IFPR – Campus Assis Chateaubriand</li>
+                            <li><strong>Curso:</strong> Ensino Médio Técnico Integrado</li>
+                            <li><strong>Tipo:</strong> Projeto Final de Curso (PFC)</li>
+                            <li><strong>Autoras:</strong> Luana Ferreira Borborema &amp; Ana Paula Marcussi</li>
+                            <li><strong>Orientador:</strong> Vagner Simões Santos</li>
+                        </ul>
+                    </div>
+
+                    <div class="about-section">
+                        <h4 class="about-subsection-title">🎯 O Problema</h4>
+                        <p class="about-text">
+                            A aluna <strong>Luana</strong>, que atua como vice-líder de turma, percebia constantemente
+                            dificuldades para manter os colegas informados sobre datas de entrega, provas, eventos
+                            acadêmicos e atividades importantes.
+                        </p>
+                        <p class="about-text"><strong>Atualmente a comunicação ocorre principalmente por:</strong></p>
+                        <ul class="about-list">
+                            <li>Grupos de WhatsApp</li>
+                            <li>Avisos verbais em sala</li>
+                            <li>Mensagens enviadas por alunos</li>
+                        </ul>
+                        <p class="about-text"><strong>Isso gera vários problemas:</strong></p>
+                        <ul class="about-list">
+                            <li>Mensagens importantes se perdem no grupo</li>
+                            <li>Alunos esquecem datas importantes</li>
+                            <li>Desorganização das informações</li>
+                            <li>Sobrecarga nos líderes da turma</li>
+                            <li>Conflitos e desencontros de informação</li>
+                        </ul>
+                    </div>
+
+                    <div class="about-section">
+                        <h4 class="about-subsection-title">🔍 Tentativas de Solução</h4>
+                        <p class="about-text">
+                            Foi considerada a utilização de ferramentas existentes, como o Google Agenda, porém surgiram
+                            limitações por necessidade de criação de empresa ou sala institucional, configuração
+                            complexa e pouca centralização das informações acadêmicas.
+                        </p>
+                        <p class="about-text">
+                            Além disso, muitas agendas acadêmicas disponíveis são pagas, o que inviabiliza o uso para
+                            todos os estudantes.
+                        </p>
+                    </div>
+
+                    <div class="about-section">
+                        <h4 class="about-subsection-title">💡 A Solução Proposta</h4>
+                        <p class="about-text">
+                            Surgiu a ideia de desenvolver uma plataforma própria chamada <strong>Agenda Acadêmica
+                                Digital</strong>, com os objetivos de centralizar eventos acadêmicos, melhorar a
+                            organização dos estudantes, reduzir esquecimentos de prazos, facilitar a comunicação
+                            acadêmica e criar um sistema acessível e gratuito.
+                        </p>
+                        <p class="about-text"><strong>Características principais:</strong></p>
+                        <ul class="about-list">
+                            <li>✓ Acesso público para visualização</li>
+                            <li>✓ Sem exigir login de estudantes</li>
+                            <li>✓ Organização por turmas</li>
+                            <li>✓ Calendário específico para cada turma</li>
+                            <li>✓ Eventos institucionais e acadêmicos integrados</li>
+                            <li>✓ Interface simples e intuitiva</li>
+                            <li>✓ Design totalmente responsivo para celulares</li>
+                        </ul>
+                    </div>
+
+                    <div class="about-section">
+                        <h4 class="about-subsection-title">⚙️ Funcionamento do System</h4>
+                        <p class="about-text"><strong>Cada turma terá seu próprio calendário com dois tipos de
+                                eventos:</strong></p>
+                        <p class="about-text"><strong>1. Eventos Institucionais</strong> - Criados pelo professor
+                            administrador</p>
+                        <ul class="about-list">
+                            <li>Semanas acadêmicas</li>
+                            <li>Eventos institucionais</li>
+                            <li>Feriados escolares</li>
+                            <li>Atividades gerais do campus</li>
+                        </ul>
+                        <p class="about-text"><strong>2. Eventos da Turma</strong> - Criados pelo líder/vice-líder</p>
+                        <ul class="about-list">
+                            <li>Provas</li>
+                            <li>Trabalhos</li>
+                            <li>Apresentações</li>
+                            <li>Atividades específicas da turma</li>
+                        </ul>
+                        <p class="about-text"><strong>Categorias de eventos com cores diferentes:</strong></p>
+                        <ul class="about-list">
+                            <li><span class="color-badge prova">■</span> <strong>Vermelho</strong> – Provas (máxima
+                                prioridade)</li>
+                            <li><span class="color-badge trabalho">■</span> <strong>Azul</strong> – Trabalhos</li>
+                            <li><span class="color-badge tarefa">■</span> <strong>Verde</strong> – Tarefas e Vistos</li>
+                            <li><span class="color-badge evento">■</span> <strong>Amarelo</strong> – Eventos
+                                Institucionais</li>
+                        </ul>
+                    </div>
+
+                    <div class="about-section">
+                        <h4 class="about-subsection-title">🔐 Sistema de Acesso</h4>
+                        <p class="about-text"><strong>Professor Administrador:</strong> Responsável por
+                            criar/editar/excluir turmas, cadastrar líderes e vice-líderes, criar eventos institucionais.
+                        </p>
+                        <p class="about-text"><strong>Líder e Vice-líder:</strong> Gerenciam apenas o calendário da sua
+                            turma, podendo criar, editar e excluir eventos.</p>
+                        <p class="about-text"><strong>Alunos:</strong> Apenas visualizam os eventos.</p>
+                    </div>
+
+                    <div class="about-section">
+                        <h4 class="about-subsection-title">🛠️ Tecnologias Utilizadas</h4>
+                        <p class="about-text"><strong>Frontend:</strong></p>
+                        <ul class="about-list">
+                            <li>HTML5</li>
+                            <li>CSS3</li>
+                            <li>JavaScript</li>
+                        </ul>
+                        <p class="about-text"><strong>Backend (em desenvolvimento):</strong></p>
+                        <ul class="about-list">
+                            <li>Node.js</li>
+                            <li>MongoDB</li>
+                        </ul>
+                    </div>
+
+                    <div class="about-section">
+                        <h4 class="about-subsection-title">⚡ Desafios do Projeto</h4>
+                        <ul class="about-list">
+                            <li>Estruturação do sistema de calendários</li>
+                            <li>Organização das turmas</li>
+                            <li>Integração com backend</li>
+                            <li>Conexão com banco de dados</li>
+                            <li>Publicação do sistema na internet</li>
+                            <li>Desenvolvimento da lógica de permissões</li>
+                        </ul>
+                    </div>
+
+                    <div class="about-section">
+                        <h4 class="about-subsection-title">🎓 Objetivos do Projeto</h4>
+                        <p class="about-text"><strong>Objetivo Geral:</strong> Melhorar a organização acadêmica e
+                            facilitar o acesso às informações acadêmicas dos estudantes do IFPR.</p>
+                        <p class="about-text"><strong>Objetivos Específicos:</strong></p>
+                        <ul class="about-list">
+                            <li>Centralizar informações acadêmicas</li>
+                            <li>Reduzir esquecimentos de prazos</li>
+                            <li>Melhorar a comunicação entre estudantes</li>
+                            <li>Tornar o ambiente escolar mais organizado</li>
+                            <li>Oferecer uma ferramenta simples e acessível</li>
+                        </ul>
+                    </div>
+
+                    <div class="about-section">
+                        <h4 class="about-subsection-title">🌟 Impacto Esperado</h4>
+                        <p class="about-text">
+                            O projeto foi pensado para beneficiar toda a comunidade acadêmica do IFPR Campus Assis
+                            Chateaubriand. A intenção é que o sistema possa ser adotado oficialmente pela instituição
+                            após o desenvolvimento.
+                        </p>
+                        <p class="about-text">
+                            Após a conclusão do projeto, a manutenção do sistema poderá ficar sob responsabilidade de um
+                            professor administrador fixo.
+                        </p>
+                    </div>
+
+                    <div class="about-section">
+                        <h4 class="about-subsection-title">🌍 Alinhamento com os ODS</h4>
+                        <ul class="about-list">
+                            <li><strong>ODS 4 – Educação de Qualidade:</strong> Promover acesso a ferramentas que
+                                melhorem a organização e desempenho acadêmico</li>
+                            <li><strong>ODS 9 – Indústria, Inovação e Infraestrutura:</strong> Desenvolvimento de
+                                soluções tecnológicas inovadoras para melhorar processos educacionais</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="contactsScreen" class="about-screen-content" style="display: none;">
+            <div class="about-screen-inner">
+                <div class="about-content">
+                    <h2 class="contacts-page-title">Contatos</h2>
+                    <div id="contactsContainer" class="contacts-container">
+                        </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="eventModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-titles">
+                    <h3 id="modalDateTitle">Data</h3>
+                    <div id="specialBadge" class="special-badge" style="display:none;">
+                        <span id="specialText">Informação Extra</span>
+                    </div>
+                </div>
+                <button class="close-modal-btn">&times;</button>
+            </div>
+
+            <div id="eventsList" class="events-container">
+                </div>
+
+            <div id="adminFormArea" class="admin-form" style="display:none;">
+                <hr>
+                <form id="eventForm">
+                    <input type="hidden" id="eventDate">
+                    <input type="hidden" id="editEventId">
+                    <h4 id="adminFormTitle">Cadastrar Atividade</h4>
+                    <div class="input-group">
+                        <label>Título:</label>
+                        <input type="text" id="title" required placeholder="Ex: Prova de Algoritmos">
+                    </div>
+                    <div class="input-group">
+                        <label>Categoria:</label>
+                        <select id="type" required>
+                            <option value="prova">Prova (Vermelho)</option>
+                            <option value="trabalho">Trabalho (Azul)</option>
+                            <option value="tarefa">Tarefa/Visto (Verde)</option>
+                            <option value="evento">Evento Inst. (Amarelo)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Descrição (Conteúdo, etc):</label>
+                        <textarea id="description" rows="3" placeholder="Detalhes da atividade..."></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>Horário:</label>
+                        <input type="time" id="time">
+                    </div>
+                    <button type="submit" class="btn-save">Salvar na Agenda</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <footer class="footer-ifpr">
+        <div class="footer-main">
+            <div class="footer-inner">
+
+                <div class="footer-col">
+                    <h4 class="footer-col-title">Agenda Acadêmica Digital</h4>
+                    <p class="footer-col-text">
+                        Sistema acadêmico desenvolvido para organização e acompanhamento de eventos escolares, provas,
+                        trabalhos e atividades do IFPR – Campus Assis Chateaubriand.
+                    </p>
+                </div>
+
+                <div class="footer-col">
+                    <h4 class="footer-col-title">Navegação</h4>
+                    <ul class="footer-nav">
+                        <li><a href="#" onclick="navigateToHome()">Início</a></li>
+                        <li><a href="#turmasSelection" onclick="navigateToHome()">Turmas</a></li>
+                        <li><a href="#" onclick="navigateToAbout()">Sobre o Projeto</a></li>
+                        <li><a href="#" onclick="navigateToContacts()">Contatos</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-col">
+                    <h4 class="footer-col-title">Institucional</h4>
+                    <ul class="footer-nav">
+                        <li>IFPR – Campus Assis Chateaubriand</li>
+                        <li>
+                            <a href="https://ifpr.edu.br/" target="_blank" rel="noopener noreferrer">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                    <polyline points="15 3 21 3 21 9" />
+                                    <line x1="10" y1="14" x2="21" y2="3" />
+                                </svg>
+                                Site Oficial IFPR
+                            </a>
+                        </li>
+                        <li>
+                            <a href="https://www.instagram.com/ifpr.assis/" target="_blank" rel="noopener noreferrer">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+                                    fill="currentColor" aria-hidden="true">
+                                    <path
+                                        d="M12 2.163c3.204 0 3.584.012 4.85.07 1.17.054 1.97.24 2.43.403a4.92 4.92 0 011.675 1.09 4.92 4.92 0 011.09 1.675c.163.46.35 1.26.403 2.43.058 1.266.07 1.646.07 4.85s-.012 3.584-.07 4.85c-.054 1.17-.24 1.97-.403 2.43a4.92 4.92 0 01-1.09 1.675 4.92 4.92 0 01-1.675 1.09c-.46.163-1.26.35-2.43.403-1.266.058-1.646.07-4.85.07s-3.584-.012-4.85-.07c-1.17-.054-1.97-.24-2.43-.403a4.92 4.92 0 01-1.675-1.09 4.92 4.92 0 01-1.09-1.675c-.163-.46-.35-1.26-.403-2.43C2.175 15.747 2.163 15.367 2.163 12s.012-3.584.07-4.85c.054-1.17.24-1.97.403-2.43a4.92 4.92 0 011.09-1.675 4.92 4.92 0 011.675-1.09c.46-.163 1.26-.35 2.43-.403C8.416 2.175 8.796 2.163 12 2.163zm0-2.163C8.741 0 8.332.014 7.052.072 5.775.13 4.9.333 4.14.63a7.07 7.07 0 00-2.563 1.67A7.07 7.07 0 00.63 4.86C.333 5.62.13 6.495.072 7.772.014 9.052 0 9.46 0 12c0 2.54.014 2.948.072 4.228.058 1.277.261 2.152.558 2.912a7.07 7.07 0 001.67 2.563 7.07 7.07 0 002.563 1.67c.76.297 1.635.5 2.912.558C9.052 23.986 9.46 24 12 24c2.54 0 2.948-.014 4.228-.072 1.277-.058 2.152-.261 2.912-.558a7.07 7.07 0 002.563-1.67 7.07 7.07 0 001.67-2.563c.297-.76.5-1.635.558-2.912C23.986 14.948 24 14.54 24 12c0-2.54-.014-2.948-.072-4.228-.058-1.277-.261-2.152-.558-2.912a7.07 7.07 0 00-1.67-2.563 7.07 7.07 0 00-2.563-1.67C18.38.333 17.505.13 16.228.072 14.948.014 14.54 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zm0 10.162a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+                                </svg>
+                                Instagram IFPR Assis
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <p>&copy; 2026 – IFPR Campus Assis Chateaubriand &middot; Projeto acadêmico – PFC</p>
+        </div>
+    </footer>
+
+    <div id="changePassModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Alterar Minha Senha</h3>
+                <button class="close-modal-btn"
+                    onclick="document.getElementById('changePassModal').style.display='none'">&times;</button>
+            </div>
+            <div class="admin-form">
+                <form id="formAlterarSenha">
+                    <div class="input-group">
+                        <label>Senha Atual:</label>
+                        <input type="password" id="currentPass" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Nova Senha:</label>
+                        <input type="password" id="newPass" required minlength="4">
+                    </div>
+                    <div class="input-group">
+                        <label>Confirmar Nova Senha:</label>
+                        <input type="password" id="confirmNewPass" required minlength="4">
+                    </div>
+                    <div id="passwordMessage"
+                        style="display:none; padding:10px; border-radius:8px; margin-bottom:15px; font-size:0.9rem;">
+                    </div>
+                    <button type="submit" class="btn-save">Salvar Nova Senha</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="notificationContainer" class="notification-container"></div>
+
+
+
+    <div vw class="enabled">
+  <div vw-access-button class="active"></div>
+  <div vw-plugin-wrapper>
+    <div class="vw-plugin-top-wrapper"></div>
+  </div>
+</div>
+
+<script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+<script>
+  new window.VLibras.Widget('https://vlibras.gov.br/app');
+</script>
+
+    <div id="loginModal" class="modal-overlay">
+        <div class="login-modal-card">
+            <div class="modal-header">
+                <h3>🔐 Acesso Líder</h3>
+                <button id="closeLoginModal" class="close-modal-btn">&times;</button>
+            </div>
+            <div class="admin-form">
+                <form id="sidebarLoginForm">
+                    <div class="input-group">
+                        <label for="loginEmail">E-mail</label>
+                        <input type="email" id="loginEmail" required placeholder="seu@email.com">
+                    </div>
+                    <div class="input-group">
+                        <label for="loginPass">Senha</label>
+                        <input type="password" id="loginPass" required placeholder="Sua senha">
+                    </div>
+                    <button type="submit" class="btn-login-submit">Entrar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="userInfoModal" class="modal-overlay">
+        <div class="login-modal-card">
+            <div class="modal-header">
+                <h3>👤 Minha Conta</h3>
+                <button id="closeUserInfoModal" class="close-modal-btn">&times;</button>
+            </div>
+            <div class="user-info-content">
+                <div class="info-row">
+                    <small>Nome:</small>
+                    <div id="loggedUserName">--</div>
+                </div>
+                <div class="info-row">
+                    <small>Email:</small>
+                    <div id="loggedUserEmail">--</div>
+                </div>
+                <div class="info-row">
+                    <small>Turma:</small>
+                    <div id="loggedUserTurma">--</div>
+                </div>
+                <button id="btnLogoutUser" class="btn-logout-submit">Sair da conta</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
