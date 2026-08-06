@@ -22,7 +22,9 @@ app.use(cors({
         "x-usuario-email",
         "x-admin-auth"
     ]
-}));
+}));// Parse JSON e formulários ANTES das rotas
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Servir frontend estático
 app.use(express.static(path.join(__dirname, '..', 'frontend-vanilla')));
@@ -601,7 +603,7 @@ app.put("/admin/atualizar-perfil", async (req, res) => {
 
 
 // ✅ SERVIDOR (separado)
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, () => {
 
     console.log(`--- SERVIDOR REPARADO NA PORTA ${PORT} ---`);
