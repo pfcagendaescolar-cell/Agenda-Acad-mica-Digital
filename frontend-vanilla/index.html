@@ -266,11 +266,13 @@
                             <li>HTML5</li>
                             <li>CSS3</li>
                             <li>JavaScript</li>
+                            <li>Netlify</li>
                         </ul>
-                        <p class="about-text"><strong>Backend (em desenvolvimento):</strong></p>
+                        <p class="about-text"><strong>Backend:</strong></p>
                         <ul class="about-list">
                             <li>Node.js</li>
                             <li>MongoDB</li>
+                            <li>Render</li>
                         </ul>
                     </div>
 
@@ -512,29 +514,39 @@
         </div>
     </div>
 
-    <div id="userInfoModal" class="modal-overlay">
-        <div class="login-modal-card">
-            <div class="modal-header">
-                <h3>👤 Minha Conta</h3>
-                <button id="closeUserInfoModal" class="close-modal-btn">&times;</button>
+    
+<div id="userInfoModal" class="modal-overlay">
+    <div class="login-modal-card">
+
+        <div class="modal-header">
+            <h3>👤 Minha Conta</h3>
+            <button id="closeUserInfoModal" class="close-modal-btn">&times;</button>
+        </div>
+
+        <div class="admin-form">
+            
+            <div class="input-group">
+                <label>Nome</label>
+                <div id="loggedUserName" class="user-info-field">--</div>
             </div>
-            <div class="user-info-content">
-                <div class="info-row">
-                    <small>Nome:</small>
-                    <div id="loggedUserName">--</div>
-                </div>
-                <div class="info-row">
-                    <small>Email:</small>
-                    <div id="loggedUserEmail">--</div>
-                </div>
-                <div class="info-row">
-                    <small>Turma:</small>
-                    <div id="loggedUserTurma">--</div>
-                </div>
-                <button id="btnLogoutUser" class="btn-logout-submit">Sair da conta</button>
+
+            <div class="input-group">
+                <label>E-mail</label>
+                <div id="loggedUserEmail" class="user-info-field">--</div>
             </div>
+
+            <div class="input-group">
+                <label>Turma</label>
+                <div id="loggedUserTurma" class="user-info-field">--</div>
+            </div>
+
+            <button id="btnLogoutUser" class="btn-login-submit">
+                Sair da conta
+            </button>
+
         </div>
     </div>
+</div>
 
     <script src="script.js"></script>
 </body>
