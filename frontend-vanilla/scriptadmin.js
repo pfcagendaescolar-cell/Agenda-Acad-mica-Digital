@@ -3,7 +3,7 @@
  * Gerencia turmas + eventos (por turma e gerais)
  */
 
-const API_BASE = 'http://localhost:3000';// =============================
+const API_BASE = "https://agenda-academica-digital.onrender.com";// =============================
 // ESTADO GLOBAL
 // =============================
 const safeParse = (key, fallback = null) => {
