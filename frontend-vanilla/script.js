@@ -7,7 +7,8 @@
 // CONFIGURAÇÕES
 // =============================
 
-const API_BASE = 'https://agenda-academica-backend-w48m.onrender.com';
+const API_BASE = "http://localhost:3000";
+
 const FERIADOS_ESTADUAIS = [
     { date: "-12-19", name: "Emancipação Política do Paraná", type: "state" }
 ];
@@ -77,6 +78,7 @@ let feriadosNacionais = {};
 let turmaAtual = JSON.parse(localStorage.getItem('ifpr_selected_turma_v1')) || null;
 let turmasCadastradas = [];   
 let liderLogado = false;      
+let eventoEmEdicao = null;
 
 // =============================
 // REGRA DE PERMISSÃO POR TURMA (NOVA)
@@ -87,27 +89,8 @@ let liderLogado = false;
  * na turma que está atualmente aberta no calendário.
  */
 function podeEditarTurma() {
-    const usuario = obterUsuarioLogado();
-    if (!usuario) return false;
-
-    const role = usuario.role || localStorage.getItem("usuarioRole");
-    
-    if (role === "admin") {
-        return true;
-    }
-
-    if (role === "lider" || role === "turma_admin") {
-        const turmaUsuario = String(usuario.turma || usuario.turmaId || localStorage.getItem("usuarioTurma") || '').trim();
-        const turmaAbertaId = turmaAtual ? String(turmaAtual.id || turmaAtual.nome || '').trim() : '';
-        const turmaAbertaNome = turmaAtual ? String(turmaAtual.nome || '').trim() : '';
-
-        // Compara tanto pelo ID quanto pelo Nome da turma aberta
-        if (turmaUsuario && (turmaUsuario === turmaAbertaId || turmaUsuario === turmaAbertaNome)) {
-            return true;
-        }
-    }
-
-    return false;
+    // 🔐 SEGURANÇA: Frontend não deve confiar em role para autorização; apenas verificar se usuário está autenticado.
+    return Boolean(obterUsuarioLogado());
 }
 
 // =============================
@@ -125,7 +108,9 @@ function salvarSessao(usuario) {
         autenticadoEm: new Date().toISOString()
     };
 
-    localStorage.setItem(SESSAO_LIDER_KEY, JSON.stringify(sessao));
+    // 🔐 SEGURANÇA: Persistir sessão apenas em sessionStorage (não em localStorage)
+    sessionStorage.setItem(SESSAO_LIDER_KEY, JSON.stringify(sessao));
+    // Remover possíveis legados em localStorage
     localStorage.removeItem(SESSAO_LIDER_LEGACY_FLAG);
     localStorage.removeItem(SESSAO_LIDER_LEGACY_USER);
 
@@ -134,7 +119,8 @@ function salvarSessao(usuario) {
 
 function obterSessao() {
     try {
-        const sessaoSalva = JSON.parse(localStorage.getItem(SESSAO_LIDER_KEY));
+        // Primeiro tentar obter sessão do sessionStorage (mais seguro)
+        const sessaoSalva = JSON.parse(sessionStorage.getItem(SESSAO_LIDER_KEY));
 
         if (sessaoSalva && sessaoSalva.usuario && sessaoSalva.usuario.email) {
             return sessaoSalva;
@@ -146,23 +132,31 @@ function obterSessao() {
     }
 
     try {
+        // Migrar sessão legado de localStorage para sessionStorage (sem roles)
         const liderLegadoLogado = localStorage.getItem(SESSAO_LIDER_LEGACY_FLAG) === 'true';
         const usuarioLegado = JSON.parse(localStorage.getItem(SESSAO_LIDER_LEGACY_USER));
 
         if (liderLegadoLogado && usuarioLegado && usuarioLegado.email) {
-            return salvarSessao(usuarioLegado);
+            // Salvar apenas dados minimais na sessão
+            const minimal = { nome: usuarioLegado.nome || usuarioLegado.name || '', email: usuarioLegado.email };
+            const s = salvarSessao(minimal);
+            // limpar legado
+            localStorage.removeItem(SESSAO_LIDER_LEGACY_FLAG);
+            localStorage.removeItem(SESSAO_LIDER_LEGACY_USER);
+            return s;
         }
     } catch (erro) {
         console.warn('Sessão antiga inválida. Limpando dados locais.', erro);
     }
-
-    localStorage.removeItem(SESSAO_LIDER_LEGACY_FLAG);
-    localStorage.removeItem(SESSAO_LIDER_LEGACY_USER);
     return null;
 }
 
 function limparSessao() {
-    localStorage.removeItem(SESSAO_LIDER_KEY);
+    // 🔐 SEGURANÇA: Remover apenas dados de sessão; não manter roles no frontend
+    sessionStorage.removeItem(SESSAO_LIDER_KEY);
+    sessionStorage.removeItem('userName');
+    sessionStorage.removeItem('usuarioEmail');
+    // limpar legados
     localStorage.removeItem(SESSAO_LIDER_LEGACY_FLAG);
     localStorage.removeItem(SESSAO_LIDER_LEGACY_USER);
     localStorage.removeItem('ifpr_user_logged');
@@ -174,21 +168,16 @@ function limparSessao() {
 function obterUsuarioLogado() {
     const sessao = obterSessao();
     if (sessao && sessao.usuario) return sessao.usuario;
-    
+
+    // fallback: migrar usuário legado se existir (sem roles)
     try {
         const userLogged = JSON.parse(localStorage.getItem('ifpr_user_logged'));
-        if (userLogged && userLogged.email) return userLogged;
+        if (userLogged && userLogged.email) {
+            const minimal = { nome: userLogged.nome || userLogged.name || '', email: userLogged.email };
+            salvarSessao(minimal);
+            return minimal;
+        }
     } catch (e) {}
-
-    const role = localStorage.getItem('usuarioRole');
-    const email = localStorage.getItem('usuarioEmail');
-    if (email) {
-        return {
-            email: email,
-            role: role || 'user',
-            turma: localStorage.getItem('usuarioTurma') || ''
-        };
-    }
 
     return null;
 }
@@ -217,7 +206,8 @@ function atualizarInterfaceUsuario() {
         if (emailEl) emailEl.textContent = usuario.email || '--';
         
         if (turmaEl) {
-            const idTurmaLider = usuario.turma || usuario.turmaId || usuario._id;
+            // Sem role/turma confiáveis no frontend, exibir somente se presente
+            const idTurmaLider = usuario.turma || usuario.turmaId || usuario._id || '';
             const turma = turmasCadastradas.find(t => String(t.id) === String(idTurmaLider) || String(t.nome) === String(idTurmaLider));
             turmaEl.textContent = turma ? turma.nome : (usuario.turma || 'Não definida');
         }
@@ -228,7 +218,8 @@ function atualizarInterfaceUsuario() {
     const adminFormArea = document.getElementById('adminFormArea');
     if (adminFormArea) {
         // Exibe o painel de criação somente se o usuário tiver privilégios na turma aberta
-        adminFormArea.style.display = podeEditarTurma() ? 'block' : 'none';
+        // 🔐 SEGURANÇA: Frontend apenas verifica se usuário está logado; backend é responsável pela autorização
+        adminFormArea.style.display = usuarioEstaLogado() ? 'block' : 'none';
     }
 }
 
@@ -530,6 +521,12 @@ function abrirPopupDetalhes(chaveData) {
     if (adminFormArea) {
         // Exibe o painel de criação dentro do modal apenas se possuir permissão na turma aberta
         adminFormArea.style.display = podeEditarTurma() ? 'block' : 'none';
+        // Sempre limpar estado de edição ao abrir modal via calendário (novo evento)
+        eventoEmEdicao = null;
+        const editIdInput = document.getElementById('editEventId');
+        if (editIdInput) editIdInput.value = '';
+        const adminFormTitle = document.getElementById('adminFormTitle');
+        if (adminFormTitle) adminFormTitle.innerText = 'Cadastrar Atividade';
     }
 
     document.getElementById('eventModal').style.display = "flex";
@@ -555,22 +552,29 @@ function renderizarListaDeEventos(chaveData) {
             ? '<span style="font-size:0.65rem; background:var(--primary); color:white; padding:1px 6px; border-radius:8px; margin-left:6px;">GERAL</span>'
             : '';
 
+        // Verificar permissões para exibir botões (usar localStorage.ifpr_user_logged)
         let podeEditar = false;
-        
-        // Validação estrita considerando a regra de turma atual aberta
-        if (podeEditarTurma()) {
-            if (userLogged.role === 'admin') {
-                podeEditar = true; 
-            } else {
-                const idTurmaLider = userLogged.turma || userLogged.turmaId || userLogged._id;
-                if (String(ev.turmaId) === String(idTurmaLider) && ev.tipo !== 'geral') {
+        try {
+            const usuario = JSON.parse(localStorage.getItem('ifpr_user_logged')) || null;
+            if (usuario && usuario.role) {
+                const role = String(usuario.role).toLowerCase();
+                const turmaUsuario = usuario.turma || '';
+                const eventoTurma = ev.turmaId || '';
+
+                if (role === 'admin') {
                     podeEditar = true;
+                } else if (role === 'lider' || role === 'turma_admin' || role === 'líder') {
+                    if (String(eventoTurma) === String(turmaUsuario) && ev.tipo !== 'geral') {
+                        podeEditar = true;
+                    }
                 }
             }
+        } catch (e) {
+            console.warn('Erro lendo ifpr_user_logged', e);
         }
 
-        const btnRemover = podeEditar
-            ? `<button onclick="removerAtividade('${ev._id}')">🗑️</button>` : '';
+        const btnRemover = podeEditar ? `<button class="btn-event-delete" data-id="${ev._id}">🗑️</button>` : '';
+        const btnEditar = podeEditar ? `<button class="btn-event-edit" data-id="${ev._id}">✏️</button>` : '';
 
         const descHtml = ev.descricao ? `<p class="event-desc">${ev.descricao}</p>` : '';
 
@@ -581,11 +585,86 @@ function renderizarListaDeEventos(chaveData) {
                     <small>${ev.hora || '--:--'} | ${(ev.categoria || '').toUpperCase()}</small>
                     ${descHtml}
                 </div>
+                ${btnEditar}
                 ${btnRemover}
             </div>
         `;
 
         listaHtml.appendChild(item);
+    });
+
+    // Delegação de eventos para botões de editar/excluir adicionados dinamicamente
+    listaHtml.querySelectorAll('.btn-event-delete').forEach(b => {
+        b.addEventListener('click', async (evClick) => {
+            const id = evClick.currentTarget.getAttribute('data-id');
+            if (!id) return;
+            if (!confirm('Deseja realmente excluir este evento?')) return;
+            try {
+                const headers = obterHeadersAutenticacao();
+                const res = await fetch(`${API_BASE}/eventos/${id}`, { method: 'DELETE', headers });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ message: 'Erro ao excluir' }));
+                    console.error('Erro ao excluir evento', err);
+                    showError('Erro ao excluir evento: ' + (err.message || err.error || res.status));
+                    return;
+                }
+                await carregarEventosDaAPI();
+                renderizarCalendario();
+                const chave = document.getElementById('eventDate')?.value;
+                if (chave) renderizarListaDeEventos(chave);
+            } catch (e) {
+                console.error('Erro ao excluir evento', e);
+            }
+        });
+    });
+
+    listaHtml.querySelectorAll('.btn-event-edit').forEach(b => {
+        b.addEventListener('click', (evClick) => {
+            const id = evClick.currentTarget.getAttribute('data-id');
+            if (!id) return;
+
+            // Encontrar evento no cache carregado
+            const eventoAtual = eventosCarregados.find(x => String(x._id) === String(id));
+            if (!eventoAtual) {
+                console.error('Erro ao editar evento: evento não encontrado no cache');
+                return;
+            }
+
+            try {
+                // Preencher formulário do modal com dados do evento
+                eventoEmEdicao = eventoAtual;
+
+                const eventDateInput = document.getElementById('eventDate');
+                const titleInput = document.getElementById('title');
+                const typeInput = document.getElementById('type');
+                const descInput = document.getElementById('description');
+                const timeInput = document.getElementById('time');
+                const editIdInput = document.getElementById('editEventId');
+                const adminFormTitle = document.getElementById('adminFormTitle');
+
+                if (eventDateInput) eventDateInput.value = eventoAtual.data || '';
+                if (titleInput) titleInput.value = eventoAtual.titulo || '';
+                if (typeInput) typeInput.value = eventoAtual.categoria || eventoAtual.tipo || 'prova';
+                if (descInput) descInput.value = eventoAtual.descricao || '';
+                if (timeInput) timeInput.value = eventoAtual.hora || '';
+                if (editIdInput) editIdInput.value = eventoAtual._id || '';
+                if (adminFormTitle) adminFormTitle.innerText = 'Editar Evento';
+
+                // Mostrar o formulário/admin area dentro do modal
+                const adminArea = document.getElementById('adminFormArea');
+                if (adminArea) adminArea.style.display = 'block';
+
+                // Atualizar título do modal (data)
+                const modalDateTitle = document.getElementById('modalDateTitle');
+                if (modalDateTitle) modalDateTitle.innerText = eventoAtual.data ? eventoAtual.data.split('-').reverse().join('/') : 'Editar Evento';
+
+                // Abrir modal
+                const eventoModal = document.getElementById('eventModal');
+                if (eventoModal) eventoModal.style.display = 'flex';
+            } catch (e) {
+                console.error('Erro ao abrir modal de edição', e);
+            }
+        });
     });
 }
 
@@ -612,17 +691,30 @@ async function mudarMesCalendar(direcao) {
  * Helper para injetar os headers de autenticação exigidos pelo middleware nas requisições de eventos.
  */
 function obterHeadersAutenticacao() {
-    const user = obterUsuarioLogado() || {};
-    
-    const role = user.role || localStorage.getItem("usuarioRole") || '';
-    const turma = user.turma || user.turmaId || localStorage.getItem("usuarioTurma") || '';
-    const email = user.email || localStorage.getItem("usuarioEmail") || '';
+    // Tenta ler usuário salvo em localStorage (ifpr_user_logged) ou sessão mínima
+    try {
+        const raw = localStorage.getItem('ifpr_user_logged');
+        if (raw) {
+            const u = JSON.parse(raw);
+            return {
+                'Content-Type': 'application/json',
+                'X-Usuario-Email': u.email || '',
+                'X-Usuario-Role': u.role || '',
+                'X-Usuario-Turma': u.turma || ''
+            };
+        }
+    } catch (e) {
+        console.warn('obterHeadersAutenticacao: erro lendo localStorage', e);
+    }
 
+    // Fallback: tentar obter email da sessão (não contém role/turma confiáveis)
+    const user = obterUsuarioLogado() || {};
+    const email = user.email || sessionStorage.getItem('usuarioEmail') || '';
     return {
         'Content-Type': 'application/json',
-        'x-usuario-role': role,
-        'x-usuario-turma': String(turma),
-        'x-usuario-email': email
+        'X-Usuario-Email': email,
+        'X-Usuario-Role': '',
+        'X-Usuario-Turma': ''
     };
 }
 
@@ -635,24 +727,7 @@ window.removerAtividade = async (eventoId) => {
     if (!confirm("Deseja apagar?")) return;
 
     try {
-        const userLogged = obterUsuarioLogado() || {};
-        
-        if (userLogged.role === 'turma_admin' || userLogged.role === 'lider') {
-            const evento = eventosCarregados.find(e => e._id === eventoId);
-            
-            if (!evento) {
-                showError('Evento não encontrado no calendário.');
-                return;
-            }
-            
-            const idTurmaLider = userLogged.turma || userLogged.turmaId || userLogged._id;
-            
-            if (String(evento.turmaId) !== String(idTurmaLider) || evento.tipo === 'geral') {
-                showError('Acesso Negado: Você só pode excluir eventos da sua própria turma.');
-                return;
-            }
-        }
-
+        // Frontend apenas checa sessão; permissões críticas são validadas no backend
         const headers = obterHeadersAutenticacao();
         
         const res = await fetch(`${API_BASE}/eventos/${eventoId}`, { 
@@ -742,19 +817,31 @@ function configurarEventosInterface() {
 
                 if (res.ok) {
                     liderLogado = true;
-                    localStorage.setItem('ifpr_lider_logado', 'true');
-                    localStorage.setItem('ifpr_user_logged', JSON.stringify(data.user));
+                    // 🔐 SEGURANÇA: Não salvar dados sensíveis em localStorage. Usar sessionStorage para sessão temporária.
+                    sessionStorage.setItem('ifpr_lider_logado', 'true');
+                    const minimal = { nome: data.user.nome, email: data.user.email };
+                    salvarSessao(minimal);
+                    sessionStorage.setItem('userName', minimal.nome);
+                    if (minimal.email) sessionStorage.setItem('usuarioEmail', minimal.email);
 
-                    if (data.user.role) localStorage.setItem('usuarioRole', data.user.role);
-                    if (data.user.turma || data.user.turmaId) localStorage.setItem('usuarioTurma', data.user.turma || data.user.turmaId);
-                    if (data.user.email) localStorage.setItem('usuarioEmail', data.user.email);
+                    // 🔐 AUTENTICAÇÃO: armazenar dados mínimos para headers em localStorage
+                    try {
+                        const usuarioLogged = {
+                            email: (data.user && data.user.email) || '',
+                            role: (data.user && (data.user.role || data.user.cargo)) || '',
+                            turma: (data.user && (data.user.turmaId || data.user.turma || data.user.turmaNome)) || ''
+                        };
+                        localStorage.setItem('ifpr_user_logged', JSON.stringify(usuarioLogged));
+                    } catch (e) {
+                        console.warn('Não foi possível salvar ifpr_user_logged no localStorage', e);
+                    }
 
                     if (loginModal) loginModal.style.display = 'none';
                     sidebarLoginForm.reset();
-                    
+
                     atualizarInterfaceUsuario();
                     if (turmaAtual) renderizarCalendario();
-                    
+
                     showSuccess("Login realizado com sucesso!");
                 } else {
                     showError(data.error || "E-mail ou senha incorretos.");
@@ -804,8 +891,21 @@ function configurarEventosInterface() {
         };
     }
 
-    document.querySelector('.close-modal-btn').onclick =
-        () => document.getElementById('eventModal').style.display = "none";
+    document.querySelector('.close-modal-btn').onclick = () => {
+        const modal = document.getElementById('eventModal');
+        if (modal) modal.style.display = "none";
+        // limpar estado de edição ao fechar modal
+        eventoEmEdicao = null;
+        const editIdInput = document.getElementById('editEventId');
+        if (editIdInput) editIdInput.value = '';
+        const adminFormTitle = document.getElementById('adminFormTitle');
+        if (adminFormTitle) adminFormTitle.innerText = 'Cadastrar Atividade';
+        // limpar campos do formulário
+        const titleInput = document.getElementById('title'); if (titleInput) titleInput.value = '';
+        const descInput = document.getElementById('description'); if (descInput) descInput.value = '';
+        const timeInput = document.getElementById('time'); if (timeInput) timeInput.value = '';
+        const typeInput = document.getElementById('type'); if (typeInput) typeInput.value = 'prova';
+    };
 
     document.getElementById('eventForm').onsubmit = async (e) => {
         e.preventDefault();
@@ -820,20 +920,66 @@ function configurarEventosInterface() {
         const userLogged = obterUsuarioLogado() || {};
 
         let idTurmaEvento = turmaAtual ? (turmaAtual.id || turmaAtual.nome) : null;
-
-        if (userLogged.role === 'turma_admin' || userLogged.role === 'lider') {
-            const idTurmaLider = userLogged.turma || userLogged.turmaId || userLogged._id;
-            if (idTurmaLider) {
-                // Garante que o ID da turma enviado no payload seja estritamente o do líder logado
-                idTurmaEvento = String(idTurmaLider); 
-            }
-        }
+        // Se o usuário tiver uma turma associada no perfil (somente para conveniência de UI), usar como fallback
+        const idTurmaUsuario = userLogged.turma || userLogged.turmaId || userLogged._id || null;
+        if (!idTurmaEvento && idTurmaUsuario) idTurmaEvento = String(idTurmaUsuario);
 
         if (!idTurmaEvento) {
             showError('Erro: Nenhuma turma identificada.');
             return false;
         }
 
+        // Se estiver editando um evento existente, usar PUT
+        if (eventoEmEdicao && eventoEmEdicao._id) {
+            const dadosAtualizados = {
+                titulo: document.getElementById('title').value,
+                categoria: document.getElementById('type').value,
+                data: chave,
+                hora: document.getElementById('time').value,
+                descricao: document.getElementById('description').value
+            };
+
+            try {
+                const headers = Object.assign({ 'Content-Type': 'application/json' }, obterHeadersAutenticacao());
+                const res = await fetch(`${API_BASE}/eventos/${eventoEmEdicao._id}`, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify(dadosAtualizados)
+                });
+
+                if (!res.ok) {
+                    const erro = await res.json().catch(() => ({ error: 'Erro ao editar' }));
+                    throw new Error(erro.error || 'Erro ao editar evento');
+                }
+
+                // limpar estado de edição
+                eventoEmEdicao = null;
+                const editIdInput = document.getElementById('editEventId');
+                if (editIdInput) editIdInput.value = '';
+                const adminFormTitle = document.getElementById('adminFormTitle');
+                if (adminFormTitle) adminFormTitle.innerText = 'Cadastrar Atividade';
+
+                document.getElementById('eventModal').style.display = "none";
+                showSuccess('Atividade atualizada com sucesso!');
+                await carregarEventosDaAPI();
+                renderizarListaDeEventos(chave);
+                renderizarCalendario();
+
+                // limpar campos
+                document.getElementById('title').value = '';
+                document.getElementById('description').value = '';
+                document.getElementById('time').value = '';
+                document.getElementById('type').value = 'prova';
+
+                return false;
+            } catch (err) {
+                console.error('Erro ao editar evento', err);
+                showError(`Erro ao editar evento: ${err.message}`);
+                return false;
+            }
+        }
+
+        // Caso contrário, criar novo evento (POST)
         const novo = {
             titulo: document.getElementById('title').value,
             categoria: document.getElementById('type').value,
@@ -848,12 +994,18 @@ function configurarEventosInterface() {
 
         try {
             const headers = obterHeadersAutenticacao();
-            
+
             const res = await fetch(`${API_BASE}/eventos`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(novo)
             });
+
+            if (res.status === 401 || res.status === 403) {
+                console.error('Usuário não autenticado ou sem permissão');
+                const erro = await res.json().catch(() => ({ error: 'Acesso negado' }));
+                throw new Error(erro.error || 'Acesso negado');
+            }
 
             if (!res.ok) {
                 const erro = await res.json();
@@ -964,7 +1116,8 @@ async function carregarContatosPublico() {
     if (!container) return;
 
     try {
-        const response = await fetch(`${API_BASE}/contatos`);
+        const headers = Object.assign({ 'Content-Type': 'application/json' }, obterHeadersAutenticacao());
+        const response = await fetch(`${API_BASE}/contatos`, { headers });
 
         if (!response.ok) {
             throw new Error(`Erro ao buscar contatos do servidor: ${response.status}`);

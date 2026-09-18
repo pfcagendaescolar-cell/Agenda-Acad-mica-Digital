@@ -1,18 +1,48 @@
 const express = require('express');
-const cors = require('cors');
+const cors = require("cors");
+const app = express();
 const fs = require('fs');
 const path = require('path');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+require('dotenv').config();
+
 const connectDB = require("./config/db");
 const Turma = require("./models/turma");
 const Evento = require("./models/evento");
 const Contato = require("./models/contato");
 const Admin = require("./models/admin");
 
-const app = express();
+const authRoutes = require('./routes/auth');
+
+// Helper para comparar senhas — aceitar APENAS bcrypt hashes
+// 🔐 SEGURANÇA: Remover qualquer comparação de texto puro; retornar false se não for hash bcrypt.
+async function compareStored(stored, input) {
+    if (!stored || typeof stored !== 'string') return false;
+
+    // Apenas aceitar hashes bcrypt (prefixo $2a/$2b/$2y)
+    if (!stored.startsWith('$2')) {
+        console.warn('compareStored: valor de senha armazenado não é hash bcrypt. Negando autenticação.');
+        return false;
+    }
+
+    try {
+        return await bcrypt.compare(String(input || ''), stored);
+    } catch (err) {
+        console.error('Erro ao comparar senha via bcrypt:', err);
+        return false;
+    }
+}
+
+// ✅ 2. MIDDLEWARES
+// CORS único e validado
+// 🔐 SEGURANÇA: Removidos formatos incorretos e consolidado em apenas uma configuração CORS.
 app.use(cors({
     origin: [
         "http://localhost:3000",
-        "https://agendaacademicadigital.netlify.app"
+        "https://agendaacademicadigital.netlify.app",
+        "https://SEU-FRONTEND.netlify.app"
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: [
@@ -21,15 +51,25 @@ app.use(cors({
         "x-usuario-turma",
         "x-usuario-email",
         "x-admin-auth"
-    ]
-}));// Parse JSON e formulários ANTES das rotas
+    ],
+    credentials: true
+}));
+
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Servir frontend estático
+// ✅ 3. ROTAS
+app.use('/auth', authRoutes);
+
+// ✅ 4. FRONTEND ESTÁTICO
 app.use(express.static(path.join(__dirname, '..', 'frontend-vanilla')));
 
-// Definição dos Caminhos dos Arquivos JSON Restantes para Migração
+// ✅ 5. BANCO
+// connectDB será chamado uma única vez mais abaixo, antes de iniciar o servidor
+// 🔐 SEGURANÇA: Removida chamada precoce para evitar conexão duplicada e inicialização prematura
+
+// Caminhos de arquivos JSON (se ainda usa em partes do sistema)
 const TURMAS_FILE = path.join(__dirname, 'turmas.json');
 
 // =============================
@@ -69,8 +109,25 @@ const validarAcessoTurma = async (req, res, next) => {
     }
 
     if (usuarioLider === 'admin' || req.headers['x-admin-auth']) {
-        console.log(`  ✅ Admin autorizado`);
-        return next();
+        // 🔐 SEGURANÇA: Não confiar apenas no header; validar se o e-mail do header pertence a um Admin no DB
+        try {
+            const emailLower = String(usuarioEmail || '').toLowerCase();
+            if (!emailLower) {
+                console.warn(`🚫 [SEGURANÇA] Tentativa de admin sem email no header`);
+                return res.status(403).json({ error: "Admin inválido." });
+            }
+            const admin = await Admin.findOne({ email: emailLower });
+            if (admin) {
+                console.log(`  ✅ Admin autorizado (validado no DB)`);
+                return next();
+            } else {
+                console.warn(`🚫 [SEGURANÇA] Header admin presente, mas email não encontrado no DB: ${emailLower}`);
+                return res.status(403).json({ error: "Admin inválido." });
+            }
+        } catch (e) {
+            console.error("Erro ao validar admin no DB:", e);
+            return res.status(500).json({ error: "Erro ao validar credenciais." });
+        }
     }
 
     if (usuarioLider === 'turma_admin' || usuarioLider === 'lider') {
@@ -82,6 +139,21 @@ const validarAcessoTurma = async (req, res, next) => {
                 ip: req.ip
             });
             return res.status(401).json({ error: "Usuário não autenticado corretamente." });
+        }
+
+        // 🔐 SEGURANÇA: Verificar no banco se o email do header corresponde ao líder/vice da turma declarada
+        try {
+            const turmaValid = await Turma.findOne({ id: usuarioTurmaId });
+            const emailLower = String(usuarioEmail || '').toLowerCase();
+            const isLeaderMatch = turmaValid && turmaValid.lider && (String(turmaValid.lider.email || '').toLowerCase() === emailLower);
+            const isViceMatch = turmaValid && turmaValid.vice && (String(turmaValid.vice.email || '').toLowerCase() === emailLower);
+            if (!isLeaderMatch && !isViceMatch) {
+                console.warn(`🚫 [SEGURANÇA] Header claims lider/turma_admin but email not found in turma:`, { usuarioTurmaId, email: emailLower });
+                return res.status(403).json({ error: "Usuário não autorizado para essa turma." });
+            }
+        } catch (e) {
+            console.error("Erro ao validar usuário da turma no DB:", e);
+            return res.status(500).json({ error: "Erro ao validar credenciais." });
         }
 
         if (turmaIdRequisicao && turmaIdRequisicao !== '__geral__' && turmaIdRequisicao !== usuarioTurmaId) {
@@ -119,23 +191,83 @@ const validarAcessoTurma = async (req, res, next) => {
 // Mapeamento interno para compatibilidade com o middleware existente
 const authMiddleware = validarAcessoTurma;
 
+// 🔐 SEGURANÇA: Função utilitária para sanitizar turmas e remover senhas antes de enviar ao cliente
+function sanitizeTurma(turma) {
+    const obj = (turma && turma.toObject) ? turma.toObject() : (turma || {});
+    if (obj.lider && Object.prototype.hasOwnProperty.call(obj.lider, 'senha')) delete obj.lider.senha; // 🔐 SEGURANÇA
+    if (obj.vice && Object.prototype.hasOwnProperty.call(obj.vice, 'senha')) delete obj.vice.senha; // 🔐 SEGURANÇA
+    return obj;
+}
+
+// 🔐 SEGURANÇA: DTOs para resposta da API — NUNCA expor campos sensíveis
+function adminDTO(admin) {
+    if (!admin) return null;
+    const a = (admin && admin.toObject) ? admin.toObject() : admin;
+    return {
+        _id: a._id,
+        nome: a.nome,
+        email: a.email,
+        cargo: a.cargo || null,
+        role: a.role || null
+    };
+}
+
+function turmaDTO(turma) {
+    if (!turma) return null;
+    const t = sanitizeTurma(turma);
+    return {
+        _id: t._id || null,
+        id: t.id || t._id || null,
+        nome: t.nome,
+        curso: t.curso,
+        ano: t.ano,
+        lider: t.lider
+    ? {
+        nome: t.lider.nome,
+        email: t.lider.email
+    }
+    : null,
+
+vice: t.vice
+    ? {
+        nome: t.vice.nome,
+        email: t.vice.email
+    }
+    : null
+    };
+}
+
+function eventoDTO(ev) {
+    if (!ev) return null;
+    const e = (ev && ev.toObject) ? ev.toObject() : ev;
+    return {
+        _id: e._id,
+        titulo: e.titulo,
+        tipo: e.tipo || e.categoria,
+        categoria: e.categoria,
+        data: e.data,
+        hora: e.hora,
+        descricao: e.descricao,
+        turmaId: e.turmaId,
+        criadoPor: e.criadoPor,
+        usuarioId: e.usuarioId,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt
+    };
+}
+
 // =============================
 // ROTAS DE AUTENTICAÇÃO (AUTH)
 // =============================
 
 app.post('/auth/login', async (req, res) => {
     try {
-        console.log("--- DEBUG LOGIN (v6.1 - DETALHADO) ---");
+        console.log("--- LOGIN ---");
 
-        console.log("BODY RECEBIDO:");
-        console.log(req.body);
-        
         const { email, senha, password } = req.body || {};
 
         const passInput = (senha || password || "").trim();
         const emailInput = (email || "").trim().toLowerCase();
-
-        console.log(`Recebido: Email=[${emailInput}], Senha=[${passInput}]`);
 
         if (!emailInput || !passInput) {
             return res.status(400).json({
@@ -143,67 +275,66 @@ app.post('/auth/login', async (req, res) => {
             });
         }
 
-        const adminUser = await Admin.findOne({
-            email: emailInput,
-            password: passInput
-        });
+                // =========================
+        // ADMIN LOGIN
+        // =========================
+        const adminUser = await Admin.findOne({ email: emailInput });
 
-        if (adminUser) {
-            console.log(`✅ Admin autenticado: ${adminUser.nome}`);
+        // 🔐 validação do admin — usar apenas bcrypt.compare via compareStored
+        if (adminUser && await compareStored(adminUser.password, passInput)) {
+            console.log("✅ Admin autenticado (email:", adminUser.email, ")");
 
             return res.json({
                 user: {
                     _id: adminUser._id,
                     nome: adminUser.nome,
                     email: adminUser.email,
-                    cargo: 'principal',
-                    role: 'admin'
+                    cargo: "principal",
+                    role: "admin"
                 }
             });
         }
 
+        // =========================
+        // TURMAS LOGIN
+        // =========================
         const turmas = await Turma.find();
 
-        console.log(`Buscando em ${turmas.length} turmas...`);
-
         for (const t of turmas) {
+            const liderEmail = (t.lider?.email || "").toLowerCase().trim();
+            const liderSenha = t.lider?.senha;
 
-            const storedLiderEmail = (t.lider?.email || "").trim().toLowerCase();
-            const storedLiderPass = (t.lider?.senha || "").trim();
+            const viceEmail = (t.vice?.email || "").toLowerCase().trim();
+            const viceSenha = t.vice?.senha;
 
-            const storedViceEmail = (t.vice?.email || "").trim().toLowerCase();
-            const storedVicePass = (t.vice?.senha || "").trim();
-
-
-            if (storedLiderEmail === emailInput && storedLiderPass === passInput) {
-
-                console.log(`✅ Líder autenticado: ${t.lider.nome}`);
+            // LÍDER
+            if (liderEmail === emailInput && await compareStored(liderSenha, passInput)) {
+                console.log("✅ Líder autenticado");
 
                 return res.json({
                     user: {
                         _id: t.id,
                         nome: t.lider.nome,
                         email: emailInput,
-                        cargo: 'líder',
-                        role: 'turma_admin',
+                        cargo: "líder",
+                        role: "turma_admin",
                         turmaId: t.id,
                         turmaNome: t.nome
                     }
                 });
             }
 
-
-            if (storedViceEmail === emailInput && storedVicePass === passInput) {
-
-                console.log(`✅ Vice-Líder autenticado: ${t.vice.nome}`);
+            // VICE
+            if (viceEmail === emailInput && await compareStored(viceSenha, passInput)) {
+                console.log("✅ Vice-líder autenticado");
 
                 return res.json({
                     user: {
                         _id: t.id,
                         nome: t.vice.nome,
                         email: emailInput,
-                        cargo: 'vice-líder',
-                        role: 'turma_admin',
+                        cargo: "vice-líder",
+                        role: "turma_admin",
                         turmaId: t.id,
                         turmaNome: t.nome
                     }
@@ -211,18 +342,12 @@ app.post('/auth/login', async (req, res) => {
             }
         }
 
-
-        console.log(`❌ Login falhou para: [${emailInput}]`);
-
         return res.status(401).json({
             error: "E-mail ou senha incorretos."
         });
 
-
     } catch (error) {
-
-        console.error("❌ Erro no login:", error);
-
+        console.error("Erro login:", error);
         return res.status(500).json({
             error: "Erro interno no servidor."
         });
@@ -240,11 +365,11 @@ app.put('/admin/alterar-senha', async (req, res) => {
             return res.status(404).json({ error: "Admin não encontrado." });
         }
 
-        if (admin.password !== senhaAtual) {
+        if (!await compareStored(admin.password, senhaAtual)) {
             return res.status(401).json({ error: "Senha atual incorreta." });
         }
 
-        admin.password = novaSenha;
+        admin.password = await bcrypt.hash(novaSenha, 10);
         await admin.save();
 
         console.log("Senha atualizada com sucesso!");
@@ -269,11 +394,11 @@ app.put('/auth/lider/senha', async (req, res) => {
     if (!t) return res.status(404).json({ error: "Usuário não encontrado." });
 
     if (t.lider && t.lider.email.toLowerCase() === emailInput) {
-        if (t.lider.senha !== senhaAtual) return res.status(401).json({ error: "Senha atual incorreta." });
-        t.lider.senha = novaSenha.trim();
+        if (!await compareStored(t.lider.senha, senhaAtual)) return res.status(401).json({ error: "Senha atual incorreta." });
+        t.lider.senha = await bcrypt.hash(novaSenha.trim(), 10);
     } else if (t.vice && t.vice.email.toLowerCase() === emailInput) {
-        if (t.vice.senha !== senhaAtual) return res.status(401).json({ error: "Senha atual incorreta." });
-        t.vice.senha = novaSenha.trim();
+        if (!await compareStored(t.vice.senha, senhaAtual)) return res.status(401).json({ error: "Senha atual incorreta." });
+        t.vice.senha = await bcrypt.hash(novaSenha.trim(), 10);
     }
 
     await t.save();
@@ -298,7 +423,8 @@ app.get('/eventos', async (req, res) => {
             });
         }
         const eventos = await Evento.find();
-        res.json(eventos);
+        // 🔐 SEGURANÇA: Mapear via DTO para não retornar campos inesperados
+        res.json(eventos.map(eventoDTO));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -307,7 +433,7 @@ app.get('/eventos', async (req, res) => {
 app.get('/eventos/geral', async (req, res) => {
     try {
         const eventos = await Evento.find({ tipo: 'geral' });
-        res.json(eventos);
+        res.json(eventos.map(eventoDTO));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -317,17 +443,18 @@ app.get('/eventos/turma/:id', async (req, res) => {
     try {
         const turmaIdSolicitada = req.params.id;
         const eventos = await Evento.find({ $or: [ { turmaId: turmaIdSolicitada, tipo: 'turma' }, { tipo: 'geral' } ] });
-        res.json(eventos);
+        res.json(eventos.map(eventoDTO));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
 app.post("/eventos", authMiddleware, async (req, res) => {
-  try {
-    console.log("[EVENTO] Criando evento:", req.body);
+    try {
+        // Não logar corpo da requisição (pode conter dados sensíveis). Log mínimo.
+        console.log("[EVENTO] Criando evento: turmaId=", req.body && req.body.turmaId ? req.body.turmaId : 'n/a');
 
-    const evento = new Evento({
+        const evento = new Evento({
       titulo: req.body.titulo,
       tipo: req.body.tipo,
       categoria: req.body.categoria,
@@ -341,9 +468,9 @@ app.post("/eventos", authMiddleware, async (req, res) => {
 
     await evento.save();
 
-    console.log("✅ Evento salvo no MongoDB:", evento);
-
-    res.status(201).json(evento);
+    console.log("✅ Evento salvo no MongoDB: id=", evento._id);
+    // 🔐 SEGURANÇA: retornar via DTO
+    res.status(201).json(eventoDTO(evento));
 
   } catch (err) {
     console.error("❌ Erro ao salvar evento:", err);
@@ -354,19 +481,46 @@ app.post("/eventos", authMiddleware, async (req, res) => {
 app.put('/eventos/:id', authMiddleware, async (req, res) => {
     try {
         const eventoAntigo = await Evento.findById(req.params.id);
-        if (!eventoAntigo) return res.status(404).json({ error: "Evento não encontrado." });
+        if (!eventoAntigo) return res.status(404).json({ message: "Evento não encontrado" });
+
+        // Debug info antes da validação
+        console.log({
+            role: req.headers["x-usuario-role"],
+            turmaUsuario: req.headers["x-usuario-turma"],
+            turmaEvento: eventoAntigo.turmaId
+        });
+
+        // Regras de autorização: admin pode tudo; líder só sua turma
+        const roleHeader = String(req.headers['x-usuario-role'] || '').toLowerCase();
+        const turmaUsuario = req.headers['x-usuario-turma'] || '';
+        const turmaEvento = eventoAntigo.turmaId || '';
+
+        const isAdmin = roleHeader === 'admin';
+        const isLider = roleHeader === 'lider' || roleHeader === 'turma_admin' || roleHeader === 'líder';
+
+        if (!isAdmin) {
+            if (isLider) {
+                if (String(turmaEvento) !== String(turmaUsuario)) {
+                    return res.status(403).json({ message: "Acesso não autorizado" });
+                }
+            } else {
+                return res.status(403).json({ message: "Acesso não autorizado" });
+            }
+        }
+
         if (req.body.tipo && req.body.tipo !== eventoAntigo.tipo) {
             return res.status(403).json({ error: "Não é permitido mudar o tipo de evento." });
         }
         if (req.body.turmaId && req.body.turmaId !== eventoAntigo.turmaId) {
             return res.status(403).json({ error: "Não é permitido mudar a turma do evento." });
         }
+
         const evento = await Evento.findByIdAndUpdate(
             req.params.id,
             { ...req.body, updatedAt: new Date().toISOString() },
-            { returnDocument: "after" }
+            { new: true }
         );
-        res.json(evento);
+        res.json(eventoDTO(evento));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -374,8 +528,34 @@ app.put('/eventos/:id', authMiddleware, async (req, res) => {
 
 app.delete('/eventos/:id', authMiddleware, async (req, res) => {
     try {
-        const resultado = await Evento.findByIdAndDelete(req.params.id);
-        if (!resultado) return res.status(404).json({ error: "Evento não encontrado." });
+        const evento = await Evento.findById(req.params.id);
+        if (!evento) return res.status(404).json({ message: "Evento não encontrado" });
+
+        // Debug info antes da validação
+        console.log({
+            role: req.headers["x-usuario-role"],
+            turmaUsuario: req.headers["x-usuario-turma"],
+            turmaEvento: evento.turmaId
+        });
+
+        const roleHeader = String(req.headers['x-usuario-role'] || '').toLowerCase();
+        const turmaUsuario = req.headers['x-usuario-turma'] || '';
+        const turmaEvento = evento.turmaId || '';
+
+        const isAdmin = roleHeader === 'admin';
+        const isLider = roleHeader === 'lider' || roleHeader === 'turma_admin' || roleHeader === 'líder';
+
+        if (!isAdmin) {
+            if (isLider) {
+                if (String(turmaEvento) !== String(turmaUsuario)) {
+                    return res.status(403).json({ message: "Acesso não autorizado" });
+                }
+            } else {
+                return res.status(403).json({ message: "Acesso não autorizado" });
+            }
+        }
+
+        await Evento.findByIdAndDelete(req.params.id);
         res.json({ message: 'Evento removido com sucesso' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -448,30 +628,63 @@ app.delete("/contatos/:id", authMiddleware, async (req, res) => {
 
 app.get('/turmas', async (req, res) => {
     const turmas = await Turma.find();
-    res.json(turmas);
+
+    const safe = turmas.map(t => {
+        const obj = t.toObject();
+
+        if (obj.lider) delete obj.lider.senha;
+        if (obj.vice) delete obj.vice.senha;
+
+        return obj;
+    });
+
+    res.json(safe);
 });
 
 app.post('/turmas', async (req, res) => {
+    // 🔐 SEGURANÇA: Validar admin header contra o banco (não confiar apenas no header)
     const usuarioRole = req.headers['x-usuario-role'];
-
+    const usuarioEmail = req.headers['x-usuario-email'];
     if (usuarioRole !== 'admin' && !req.headers['x-admin-auth']) {
         return res.status(403).json({ error: "Apenas administradores podem criar turmas." });
     }
+    const emailLower = String(usuarioEmail || '').toLowerCase();
+    const admin = await Admin.findOne({ email: emailLower });
+    if (!admin) return res.status(403).json({ error: "Admin inválido." });
 
     const novo = req.body;
-
     if (!novo.id) novo.id = Date.now().toString();
 
-    const turma = await Turma.create(novo);
+    // 🔐 SEGURANÇA: Hash senhas de lider/vice se fornecidas
+    if (novo.lider && novo.lider.senha) {
+        novo.lider.senha = await bcrypt.hash(String(novo.lider.senha), 10);
+    }
+    if (novo.vice && novo.vice.senha) {
+        novo.vice.senha = await bcrypt.hash(String(novo.vice.senha), 10);
+    }
 
-    res.status(201).json(turma);
+    const turma = await Turma.create(novo);
+    // 🔐 SEGURANÇA: Usar turmaDTO para retornar objeto sem senhas e campos controlados
+    res.status(201).json(turmaDTO(turma));
 });
 
 app.put('/turmas/:id', async (req, res) => {
+    // 🔐 SEGURANÇA: Validar admin header contra o banco
     const usuarioRole = req.headers['x-usuario-role'];
-
+    const usuarioEmail = req.headers['x-usuario-email'];
     if (usuarioRole !== 'admin' && !req.headers['x-admin-auth']) {
         return res.status(403).json({ error: "Apenas administradores podem editar turmas." });
+    }
+    const emailLower = String(usuarioEmail || '').toLowerCase();
+    const admin = await Admin.findOne({ email: emailLower });
+    if (!admin) return res.status(403).json({ error: "Admin inválido." });
+
+    // 🔐 SEGURANÇA: Se vier alteração de senha de lider/vice, hash antes de salvar
+    if (req.body && req.body.lider && req.body.lider.senha) {
+        req.body.lider.senha = await bcrypt.hash(String(req.body.lider.senha), 10);
+    }
+    if (req.body && req.body.vice && req.body.vice.senha) {
+        req.body.vice.senha = await bcrypt.hash(String(req.body.vice.senha), 10);
     }
 
     const turma = await Turma.findOneAndUpdate(
@@ -484,15 +697,20 @@ app.put('/turmas/:id', async (req, res) => {
         return res.status(404).json({ error: "Turma não encontrada" });
     }
 
-    res.json(turma);
+    // 🔐 SEGURANÇA: Retornar objeto sanitizado via DTO
+    res.json(turmaDTO(turma));
 });
 
 app.delete('/turmas/:id', async (req, res) => {
+    // 🔐 SEGURANÇA: Validar admin header contra o banco
     const usuarioRole = req.headers['x-usuario-role'];
-
+    const usuarioEmail = req.headers['x-usuario-email'];
     if (usuarioRole !== 'admin' && !req.headers['x-admin-auth']) {
         return res.status(403).json({ error: "Apenas administradores podem deletar turmas." });
     }
+    const emailLower = String(usuarioEmail || '').toLowerCase();
+    const admin = await Admin.findOne({ email: emailLower });
+    if (!admin) return res.status(403).json({ error: "Admin inválido." });
 
     const turma = await Turma.findOneAndDelete({ id: req.params.id });
 
@@ -547,16 +765,62 @@ app.post("/migrar/turmas", async (req, res) => {
     }
 });
 // =============================
+// MIGRAÇÃO DE SENHAS LEGADAS (plaintext -> bcrypt)
+// =============================
+
+async function hashLegacyPasswords() {
+    try {
+        // Admins
+        const admins = await Admin.find();
+        let migratedAdmins = 0;
+        for (const a of admins) {
+            if (a.password && typeof a.password === 'string' && !a.password.startsWith('$2')) {
+                // Não logar o valor da senha
+                a.password = await bcrypt.hash(String(a.password), 10);
+                await a.save();
+                migratedAdmins++;
+            }
+        }
+        if (migratedAdmins > 0) console.log(`Migrated ${migratedAdmins} admin password(s) to bcrypt.`);
+
+        // Turmas: lider/vice
+        const turmasAll = await Turma.find();
+        let migratedTurmas = 0;
+        for (const t of turmasAll) {
+            let changed = false;
+            if (t.lider && t.lider.senha && typeof t.lider.senha === 'string' && !t.lider.senha.startsWith('$2')) {
+                t.lider.senha = await bcrypt.hash(String(t.lider.senha), 10);
+                changed = true;
+            }
+            if (t.vice && t.vice.senha && typeof t.vice.senha === 'string' && !t.vice.senha.startsWith('$2')) {
+                t.vice.senha = await bcrypt.hash(String(t.vice.senha), 10);
+                changed = true;
+            }
+            if (changed) {
+                await t.save();
+                migratedTurmas++;
+            }
+        }
+        if (migratedTurmas > 0) console.log(`Migrated ${migratedTurmas} turma leader/vice password(s) to bcrypt.`);
+
+    } catch (err) {
+        console.error('Erro na migração de senhas legadas:', err);
+    }
+}
+
+// =============================
 // INICIALIZAÇÃO DO SERVIDOR
 // =============================
 
-connectDB();
+async function startServer() {
+    await connectDB();
+    await hashLegacyPasswords();
+
+}
 
 app.put("/admin/atualizar-perfil", async (req, res) => {
     try {
-        console.log("=== ATUALIZANDO PERFIL ===");
-        console.log(req.body);
-        console.log("EMAIL DO HEADER:", req.headers["x-usuario-email"]);
+        console.log("=== ATUALIZANDO PERFIL === email=", req.headers["x-usuario-email"]);
 
         const { nome, email, senha } = req.body;
         const emailAtual = req.headers["x-usuario-email"];
@@ -570,7 +834,7 @@ app.put("/admin/atualizar-perfil", async (req, res) => {
             return res.status(404).json({ erro: "Administrador não encontrado." });
         }
 
-        if (admin.password !== senha) {
+        if (!await compareStored(admin.password, senha)) {
             return res.status(401).json({ erro: "Senha atual incorreta." });
         }
 
@@ -583,18 +847,12 @@ app.put("/admin/atualizar-perfil", async (req, res) => {
         admin.email = email.toLowerCase();
         await admin.save();
 
-        console.log("Perfil atualizado:", admin);
+        console.log("Perfil atualizado: _id=", admin._id, " email=", admin.email);
 
-        return res.json({
-            mensagem: "Dados atualizados com sucesso!",
-            user: {
-                _id: admin._id,
-                nome: admin.nome,
-                email: admin.email,
-                cargo: 'principal',
-                role: 'admin'
-            }
-        });
+        const userOut = adminDTO(admin);
+        userOut.cargo = 'principal';
+        userOut.role = 'admin';
+        return res.json({ mensagem: "Dados atualizados com sucesso!", user: userOut });
     } catch(error) {
         console.error(error);
         return res.status(500).json({ erro: "Erro interno no servidor." });
@@ -604,15 +862,19 @@ app.put("/admin/atualizar-perfil", async (req, res) => {
 
 // ✅ SERVIDOR (separado)
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
 
-    console.log(`--- SERVIDOR REPARADO NA PORTA ${PORT} ---`);
-    console.log(`--- Acesso local: http://localhost:${PORT} ---`);
-
-}).on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-        console.error(`!!! ERRO: A porta ${PORT} já está em uso por outro programa. !!!`);
-    } else {
-        console.error("Erro ao iniciar o servidor:", err);
-    }
+startServer().then(() => {
+    const server = app.listen(PORT, () => {
+        console.log(`--- SERVIDOR REPARADO NA PORTA ${PORT} ---`);
+        console.log(`--- Acesso local: http://localhost:${PORT} ---`);
+    }).on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.error(`!!! ERRO: A porta ${PORT} já está em uso por outro programa. !!!`);
+        } else {
+            console.error("Erro ao iniciar o servidor:", err);
+        }
+    });
+}).catch(err => {
+    console.error('Falha ao iniciar servidor:', err);
+    process.exit(1);
 });

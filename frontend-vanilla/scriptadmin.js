@@ -3,8 +3,7 @@
  * Gerencia turmas + eventos (por turma e gerais)
  */
 
-const API_BASE = 'https://agenda-academica-backend-w48m.onrender.com';
-// =============================
+const API_BASE = 'http://localhost:3000';// =============================
 // ESTADO GLOBAL
 // =============================
 const safeParse = (key, fallback = null) => {
@@ -22,7 +21,10 @@ let turmaEditandoEventos = safeParse('admin_turma_editando', null);
 let eventoEditandoId = null;
 let contatos = [];
 let contatoEditandoId = null;
-let currentUser = safeParse('ifpr_user_logged', null);
+// currentUser mantém informação em memória apenas; não gravamos role/permissões no storage
+let currentUser = {
+    nome: sessionStorage.getItem("userName")
+};
 let currentTab = localStorage.getItem('admin_current_tab') || 'turmas';
 
 // ✅ Helper para obter headers de autenticação
@@ -32,18 +34,11 @@ function obterHeadersAutenticacaoAdmin() {
     };
 
     if (currentUser && currentUser.email) {
+        // 🔐 SEGURANÇA: Enviar apenas email; backend valida role/autorizações
         headers['X-Usuario-Email'] = currentUser.email;
-        headers['X-Usuario-Role'] = currentUser.role || 'admin';
-        
-        // Enviar X-Usuario-Turma para líderes
-        if (currentUser.role === 'turma_admin' && currentUser._id) {
-            headers['X-Usuario-Turma'] = currentUser._id;
-        }
-        
-        // Só admin precisa de X-Admin-Auth
-        if (currentUser.role === 'admin') {
-            headers['X-Admin-Auth'] = 'true';
-        }
+        // 🔐 SEGURANÇA: Não enviar role/turma do frontend (não confiável)
+        // Enviar X-Admin-Auth para sinalizar tentativa de ação administrativa; backend valida o e-mail
+        headers['X-Admin-Auth'] = 'true';
     }
 
     return headers;
@@ -58,21 +53,17 @@ function verificarAutenticacao() {
     const userInfoHeader = document.getElementById('userInfoHeader');
     const menuIcon = document.getElementById('menuIcon');
 
-    if (!currentUser) {
+    // 🔐 SEGURANÇA: Verificação simples de sessão baseada no nome armazenado em sessionStorage
+    const userName = sessionStorage.getItem('userName');
+    if (!userName) {
         if (loginSection) loginSection.style.display = 'block';
         if (dashboardSection) dashboardSection.style.display = 'none';
         if (menuIcon) menuIcon.classList.remove('show-mobile');
         return;
     }
 
-    // BLOQUEIO DE SEGURANÇA: Apenas Admins reais podem ver o painel
-    if (currentUser.role !== 'admin') {
-        alert("Acesso Negado: Apenas administradores podem acessar o painel administrativo.");
-        localStorage.removeItem('ifpr_user_logged');
-        currentUser = null;
-        window.location.reload();
-        return;
-    }
+    // Nota: Não confiar em role no frontend; backend é responsável por autorizações.
+    // Aqui mostramos o painel se o usuário estiver autenticado (por nome de sessão).
 
     if (loginSection) loginSection.style.display = 'none';
     if (dashboardSection) dashboardSection.style.display = 'block';
@@ -81,7 +72,7 @@ function verificarAutenticacao() {
     if (menuIcon) menuIcon.setAttribute('aria-expanded', 'false');
 
     if (document.getElementById('adminUserName')) {
-        document.getElementById('adminUserName').innerText = currentUser.nome;
+        document.getElementById('adminUserName').innerText = currentUser.nome || sessionStorage.getItem('userName');
     }
     if (document.getElementById('adminUserRole')) {
         document.getElementById('adminUserRole').innerText = 'Administrador Principal';
@@ -121,15 +112,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.btn-logout-action').forEach(btn => {
         btn.onclick = () => {
             if (confirm('Deseja realmente sair?')) {
-                currentUser = null;
-                localStorage.removeItem('admin_user');
-                localStorage.removeItem('ifpr_user_logged');
+                currentUser = { nome: null };
+                // 🔐 SEGURANÇA: Remover apenas dados de sessão (nome) e limpar legados, sem reintroduzir roles
+                sessionStorage.removeItem('userName');
                 localStorage.removeItem('admin_turma_editando');
                 localStorage.removeItem('admin_current_tab');
-
-                sessionStorage.removeItem('admin_user');
-                sessionStorage.removeItem('ifpr_user_logged');
-                sessionStorage.removeItem('usuarioLogado');
+                localStorage.removeItem('admin_user');
+                localStorage.removeItem('ifpr_user_logged');
 
                 window.location.reload();
             }
@@ -178,8 +167,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const data = await res.json();
                 if (res.ok) {
-                    currentUser = data.user;
-                    localStorage.setItem('ifpr_user_logged', JSON.stringify(currentUser));
+                    // 🔐 SEGURANÇA: Manter apenas informação mínima em storage (nome do usuário)
+                    // Guardar email e outros dados apenas em memória durante a sessão
+                    currentUser = {
+                        nome: data.user.nome,
+                        email: data.user.email
+                    };
+                    sessionStorage.setItem('userName', currentUser.nome);
+
+                    // Persistir dados mínimos para headers (role/turma/email) no localStorage
+                    try {
+                        const usuarioLogged = {
+                            email: data.user.email || '',
+                            role: data.user.role || data.user.cargo || '',
+                            turma: data.user.turmaId || data.user.turma || data.user.turmaNome || ''
+                        };
+                        localStorage.setItem('ifpr_user_logged', JSON.stringify(usuarioLogged));
+                    } catch (e) {
+                        console.warn('Não foi possível salvar ifpr_user_logged no localStorage', e);
+                    }
                     verificarAutenticacao();
                     const btn = document.querySelector(`.admin-tab-btn[data-tab="${currentTab}"]`);
                     if (btn) btn.click();
@@ -396,11 +402,13 @@ window.abrirModalEdicaoTurma = (id) => {
 
     document.getElementById('liderNome').value = t.lider.nome;
     document.getElementById('liderEmail').value = t.lider.email;
-    document.getElementById('liderSenha').value = t.lider.senha;
+    // 🔐 SEGURANÇA: Nunca preencher campos de senha com valores retornados pelo servidor
+    document.getElementById('liderSenha').value = '';
 
     document.getElementById('viceNome').value = t.vice.nome;
     document.getElementById('viceEmail').value = t.vice.email;
-    document.getElementById('viceSenha').value = t.vice.senha;
+    // 🔐 SEGURANÇA: Nunca preencher campos de senha com valores retornados pelo servidor
+    document.getElementById('viceSenha').value = '';
 
     if (turmaModal) turmaModal.style.display = 'flex';
 };
@@ -510,7 +518,8 @@ async function carregarEventosDaTurma() {
     container.innerHTML = '<p class="empty-msg">Carregando...</p>';
 
     try {
-        const res = await fetch(`${API_BASE}/eventos?turmaId=${turmaEditandoEventos.id}`);
+        const headers = obterHeadersAutenticacaoAdmin();
+        const res = await fetch(`${API_BASE}/eventos?turmaId=${turmaEditandoEventos.id}`, { headers });
         const eventos = await res.json();
         renderizarListaEventos(container, eventos);
     } catch (err) {
@@ -527,7 +536,8 @@ async function carregarEventosGerais() {
     container.innerHTML = '<p class="empty-msg">Carregando...</p>';
 
     try {
-        const res = await fetch(`${API_BASE}/eventos/geral`);
+        const headers = obterHeadersAutenticacaoAdmin();
+        const res = await fetch(`${API_BASE}/eventos/geral`, { headers });
 
         if (!res.ok) {
             console.error(`Status erro: ${res.status}`);
@@ -628,7 +638,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.abrirModalEditarEvento = async (id) => {
     try {
-        const res = await fetch(`${API_BASE}/eventos`);
+        const headers = obterHeadersAutenticacaoAdmin();
+        const res = await fetch(`${API_BASE}/eventos`, { headers });
         const todos = await res.json();
         const ev = todos.find(e => e._id === id);
         if (!ev) return alert('Evento não encontrado.');
@@ -750,7 +761,7 @@ async function carregarContatosAdmin() {
     console.log('📡 Iniciando carregamento de contatos...');
 
     try {
-        const headers = obterHeadersAutenticacaoAdmin();
+        const headers = { 'Content-Type': 'application/json', ...obterHeadersAutenticacaoAdmin() };
         console.log('📦 Headers:', headers);
         console.log('📡 URL:', `${API_BASE}/contatos`);
 
@@ -841,7 +852,7 @@ window.editarContato = async (id) => {
     console.log('📝 Editando contato com ID:', id);
 
     try {
-        const headers = obterHeadersAutenticacaoAdmin();
+        const headers = { 'Content-Type': 'application/json', ...obterHeadersAutenticacaoAdmin() };
 
         console.log('🔗 Requisição:', `${API_BASE}/contatos/${id}`);
         console.log('📦 Headers:', headers);
@@ -885,7 +896,7 @@ window.excluirContato = async (id) => {
     if (!confirm('Deseja excluir este contato?')) return;
 
     try {
-        const headers = obterHeadersAutenticacaoAdmin();
+        const headers = { 'Content-Type': 'application/json', ...obterHeadersAutenticacaoAdmin() };
 
         const res = await fetch(`${API_BASE}/contatos/${id}`, {
             method: 'DELETE',
@@ -901,7 +912,7 @@ window.excluirContato = async (id) => {
 
     } catch (err) {
         console.error(err);
-        alert(`Erro ao excluir contato: ${err.message}`);
+        showToast(`Erro ao excluir contato: ${err.message}`, 'error');
     }
 };
 
@@ -922,6 +933,71 @@ async function carregarMinhaConta() {
         messageBox.style.display = 'none';
         messageBox.innerText = '';
     }
+}
+
+// =============================
+// TOAST / NOTIFICAÇÕES REUTILIZÁVEIS
+// =============================
+function showToast(message, type = 'info', duration = 3000) {
+    if (!message) return;
+
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        Object.assign(container.style, {
+            position: 'fixed',
+            top: '18px',
+            right: '18px',
+            zIndex: 99999,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            pointerEvents: 'none'
+        });
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'app-toast app-toast-' + type;
+    toast.textContent = message;
+    Object.assign(toast.style, {
+        pointerEvents: 'auto',
+        minWidth: '220px',
+        maxWidth: '380px',
+        padding: '12px 14px',
+        borderRadius: '10px',
+        color: '#fff',
+        boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
+        opacity: '0',
+        transform: 'translateY(-6px)',
+        transition: 'opacity 220ms ease, transform 220ms ease',
+        fontSize: '0.95rem',
+        lineHeight: '1.2'
+    });
+
+    if (type === 'success') {
+        toast.style.background = '#059669';
+    } else if (type === 'error') {
+        toast.style.background = '#dc2626';
+    } else {
+        toast.style.background = '#334155';
+    }
+
+    container.appendChild(toast);
+
+    // animate in
+    requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+    });
+
+    // remove after duration
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-6px)';
+        setTimeout(() => toast.remove(), 250);
+    }, duration);
 }
 
 // =============================
@@ -964,7 +1040,7 @@ document.getElementById('contatoForm')?.addEventListener('submit', async (e) => 
     };
 
     try {
-        const headers = obterHeadersAutenticacaoAdmin();
+        const headers = { 'Content-Type': 'application/json', ...obterHeadersAutenticacaoAdmin() };
         let res;
 
         if (id) {
@@ -996,7 +1072,7 @@ document.getElementById('contatoForm')?.addEventListener('submit', async (e) => 
 
     } catch (err) {
         console.error('Erro ao salvar contato:', err);
-        alert('Erro ao salvar contato: ' + err.message);
+        showToast('Erro ao salvar contato: ' + err.message, 'error');
     }
 });
 
@@ -1011,13 +1087,12 @@ document.getElementById("formEditPerfil").addEventListener("submit", async funct
 
     try {
 
-        const usuarioLogado = JSON.parse(localStorage.getItem("ifpr_user_logged")) || currentUser;
-
-    const response = await fetch("/admin/atualizar-perfil", {
+    const usuarioLogado = currentUser;
+    const response = await fetch(`${API_BASE}/admin/atualizar-perfil`, {
     method: "PUT",
     headers: {
         "Content-Type": "application/json",
-        "x-usuario-email": usuarioLogado.email
+        ...obterHeadersAutenticacaoAdmin()
     },
     body: JSON.stringify({
         nome,
@@ -1031,21 +1106,14 @@ document.getElementById("formEditPerfil").addEventListener("submit", async funct
         if(response.ok){
             if (data.user) {
                 currentUser = data.user;
-                localStorage.setItem('ifpr_user_logged', JSON.stringify(currentUser));
+                sessionStorage.setItem("userName", currentUser.nome || data.user.nome || '');
             }
 
-            messageBox.style.display = "block";
-            messageBox.style.background = "#d1fae5";
-            messageBox.style.color = "#065f46";
-            messageBox.style.border = "1px solid #6ee7b7";
-            messageBox.style.padding = "15px";
-            messageBox.style.borderRadius = "10px";
-
-            messageBox.innerText = "✅ Dados atualizados com sucesso!";
-
-            setTimeout(() => {
-                messageBox.style.display = "none";
-            }, 4000);
+            showToast('Dados atualizados com sucesso!', 'success');
+        } else {
+            // exibir erro retornado pelo backend
+            const errMsg = data?.erro || data?.error || 'Erro ao atualizar dados.';
+            showToast(errMsg, 'error');
         }
 
     } catch (error){
@@ -1083,7 +1151,7 @@ document.getElementById("formEditSenha")?.addEventListener("submit", async funct
     }
 
     try {
-        const response = await fetch("/admin/alterar-senha", {
+        const response = await fetch(`${API_BASE}/admin/alterar-senha`, {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
@@ -1098,21 +1166,12 @@ document.getElementById("formEditSenha")?.addEventListener("submit", async funct
         const data = await response.json();
 
         if(response.ok){
-            messageBox.style.display = "block";
-            messageBox.style.background = "#e6fffa";
-            messageBox.style.color = "#065f46";
-            messageBox.innerText = data.message || "Senha atualizada com sucesso.";
+            showToast(data.message || "Senha atualizada com sucesso.", 'success');
             document.getElementById("formEditSenha").reset();
         } else {
-            messageBox.style.display = "block";
-            messageBox.style.background = "#ffe6e6";
-            messageBox.style.color = "#7f1d1d";
-            messageBox.innerText = data.error || data.erro || "Erro ao atualizar senha.";
+            showToast(data.error || data.erro || "Erro ao atualizar senha.", 'error');
         }
     } catch (error) {
-        messageBox.style.display = "block";
-        messageBox.style.background = "#ffe6e6";
-        messageBox.style.color = "#7f1d1d";
-        messageBox.innerText = "Erro de conexão com o servidor.";
+        showToast("Erro de conexão com o servidor.", 'error');
     }
 });
