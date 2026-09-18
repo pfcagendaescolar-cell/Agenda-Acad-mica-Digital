@@ -39,20 +39,14 @@ async function compareStored(stored, input) {
 // CORS único e validado
 // 🔐 SEGURANÇA: Removidos formatos incorretos e consolidado em apenas uma configuração CORS.
 app.use(cors({
-    origin: [
-        "http://localhost:3000",
-        "https://agendaacademicadigital.netlify.app",
-        "https://SEU-FRONTEND.netlify.app"
-    ],
+    origin: '*',
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: [
         "Content-Type",
-        "x-usuario-role",
-        "x-usuario-turma",
-        "x-usuario-email",
-        "x-admin-auth"
-    ],
-    credentials: true
+        "X-Usuario-Email",
+        "X-Usuario-Role",
+        "X-Usuario-Turma"
+    ]
 }));
 
 
