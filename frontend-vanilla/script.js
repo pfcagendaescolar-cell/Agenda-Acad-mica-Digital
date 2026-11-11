@@ -1,2227 +1,1197 @@
-:root {
-    --primary: #32a041;
-    --bg-body: #f1f5f9;
-    --bg-card: #ffffff;
-    --text-main: #1e293b;
-    --border: #e2e8f0;
+/**
+ * AGENDA ACADÊMICA DIGITAL IFPR
+ * VERSÃO COM API REST - Eventos do servidor
+ */
 
-    /* Cores de Datas Especiais */
-    --color-off: #cbd5e1;
-    --color-recesso: #cbd5e1;
-    --color-holiday-nat: #cbd5e1;
-    --color-holiday-est: #cbd5e1;
+// =============================
+// CONFIGURAÇÕES
+// =============================
 
-    /* Cores Acadêmicas */
-    --cat-prova: #ef4444;
-    --cat-trabalho: #3b82f6;
-    --cat-tarefa: #10b981;
-    --cat-evento: #f59e0b;
+const API_BASE = "https://agenda-academica-digital.onrender.com";
 
-    /* Cabeçalho (Padrão Claro) */
-    --header-top-bg: #071D41;
-    --header-brand-bg: #ffffff;
-    --header-brand-border: #e0e0e0;
-    --header-nav-bg: #155724;
-    --header-text-main: #1a1a1a;
-    --header-text-sub: #555555;
-    --header-link-hover: rgba(255, 255, 255, 0.15);
-}
+const FERIADOS_ESTADUAIS = [
+    { date: "-12-19", name: "Emancipação Política do Paraná", type: "state" }
+];
 
-/* Modo Noturno */
-[data-theme="dark"] {
-    --bg-body: #0f172a;
-    --bg-card: #1e293b;
-    --text-main: #f1f5f9;
-    --border: #334155;
-    --color-off: #334155;
-    --color-recesso: #334155;
-    --color-holiday-nat: #334155;
-    --color-holiday-est: #334155;
+const PRIORIDADES = { "prova": 1, "trabalho": 2, "tarefa": 3, "evento": 4 };
+const SESSAO_LIDER_KEY = 'ifpr_sessao_lider_v1';
+const SESSAO_LIDER_LEGACY_FLAG = 'ifpr_lider_logado';
+const SESSAO_LIDER_LEGACY_USER = 'ifpr_user_logged';
 
-    /* Cores do Header no Dark Mode (Ajustadas conforme sugestão) */
-    --header-top-bg: #030d1d;
-    --header-brand-bg: #0f172a;
-    --header-brand-border: #1e293b;
-    --header-nav-bg: #0d3817;
-    --header-text-main: #ffffff;
-    --header-text-sub: #94a3b8;
-    --header-link-hover: rgba(255, 255, 255, 0.2);
-}
+// =============================
+// SISTEMA DE NOTIFICAÇÕES (Toast)
+// =============================
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+/**
+ * Exibe uma notificação toast na tela
+ * @param {string} message - Mensagem a exibir
+ * @param {string} type - Tipo: 'success', 'error', 'warning', 'info'
+ * @param {number} duration - Duração em ms (padrão: 5000 para erro, 3000 para sucesso)
+ */
+function showNotification(message, type = 'info', duration = null) {
+    const container = document.getElementById('notificationContainer');
+    if (!container) return;
 
-body {
-    font-family: 'Inter', sans-serif;
-    background-color: var(--bg-body);
-    color: var(--text-main);
-    transition: 0.3s;
-}
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'polite');
 
-/* =======================================
-   CARREGAMENTO INICIAL DAS TURMAS
-   ======================================= */
+    container.appendChild(toast);
 
-.initial-loading {
-    position: fixed;
-    inset: 0;
-    z-index: 10000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-body);
-    opacity: 1;
-    visibility: visible;
-    transition: opacity 0.2s ease, visibility 0.2s ease;
-}
-
-.initial-loading.is-hidden {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-}
-
-.initial-loading-spinner {
-    width: 54px;
-    height: 54px;
-    border: 5px solid rgba(50, 160, 65, 0.18);
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: initial-spinner-rotate 0.8s linear infinite;
-}
-
-@keyframes initial-spinner-rotate {
-    to { transform: rotate(360deg); }
-}
-
-.container {
-    width: 100%;
-    max-width: 480px;
-    margin: 0 auto;
-    padding: 0 15px;
-}
-
-/* ===========================================
-   CABEÇALHO INSTITUCIONAL IFPR - 3 Faixas
-   =========================================== */
-
-.header-ifpr {
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-}
-
-/* ---------------------------------------
-   FAIXA 1 – Barra azul escura (gov.br)
-   --------------------------------------- */
-.header-top-bar {
-    background-color: var(--header-top-bg);
-    height: 36px;
-    transition: background-color 0.3s;
-}
-
-.header-top-inner {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 24px;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.top-bar-left,
-.top-bar-right {
-    color: #ffffff;
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    font-family: 'Inter', sans-serif;
-}
-
-/* ---------------------------------------
-   FAIXA 2 – Faixa branca com logo
-   --------------------------------------- */
-.header-brand-bar {
-    background-color: var(--header-brand-bg);
-    border-bottom: 1px solid var(--header-brand-border);
-    transition: background-color 0.3s, border-color 0.3s;
-}
-
-.header-brand-inner {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 14px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    /* Garante alinhamento à esquerda */
-    gap: 18px;
-}
-
-.header-logo {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-}
-
-.header-logo svg {
-    display: block;
-}
-
-.header-logo img {
-    display: block;
-    height: 64px;
-    width: auto;
-    object-fit: contain;
-    filter: var(--logo-filter);
-    transition: filter 0.3s;
-}
-
-.header-titles {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    border-left: 3px solid var(--primary);
-    padding-left: 16px;
-}
-
-.header-title-main {
-    font-size: 1.35rem;
-    font-weight: 700;
-    color: var(--header-text-main);
-    font-family: 'Inter', sans-serif;
-    line-height: 1.2;
-    margin: 0;
-    transition: color 0.3s;
-}
-
-.header-title-sub {
-    font-size: 0.85rem;
-    font-weight: 400;
-    color: var(--header-text-sub);
-    font-family: 'Inter', sans-serif;
-    margin: 0;
-    transition: color 0.3s;
-}
-
-/* ---------------------------------------
-   FAIXA 3 – Barra verde de navegação
-   --------------------------------------- */
-.header-nav-bar {
-    background-color: var(--header-nav-bg);
-    transition: background-color 0.3s;
-}
-
-/* Permite posicionar elementos no canto direito da faixa inteira */
-.header-nav-bar {
-    position: relative;
-}
-
-.header-nav-inner {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 16px;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 5px;
-    /* Aumentado levemente para melhor espaçamento */
-}
-
-.nav-link {
-    color: #ffffff;
-    text-decoration: none;
-    font-size: 0.87rem;
-    font-weight: 500;
-    font-family: 'Inter', sans-serif;
-    padding: 0 14px;
-    height: 44px;
-    /* Mesma altura do toggle para alinhamento perfeito */
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    transition: background-color 0.2s ease, color 0.2s ease;
-    white-space: nowrap;
-}
-
-.nav-link:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-    color: #ffffff;
-}
-
-/* Botão de Configurações/Login no Cabeçalho */
-/* Botão de Alternar Tema no Header */
-.nav-theme-toggle {
-    /* Posicionado no canto direito da faixa verde (desktop) */
-    position: absolute;
-    right: 12px; /* distância do canto da janela */
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
-    align-items: center;
-    height: 44px; /* mesma altura dos links */
-    padding: 0 8px;
-    z-index: 1001;
-}
-
-.theme-switch {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    border-radius: 50%;
-    transition: background-color 0.2s;
-    color: #ffffff;
-}
-
-.theme-switch:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-.theme-switch input {
-    display: none;
-}
-
-.theme-switch-icon {
-    position: relative;
-    width: 20px;
-    height: 20px;
-}
-
-.sun-icon,
-.moon-icon {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
-}
-
-/* No tema escuro, oculta o sol e mostra a lua */
-[data-theme="dark"] .sun-icon {
-    opacity: 0;
-    transform: translate(-50%, -50%) rotate(45deg) scale(0);
-}
-
-[data-theme="light"] .moon-icon {
-    opacity: 0;
-    transform: translate(-50%, -50%) rotate(-45deg) scale(0);
-}
-
-.nav-config-btn {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 0 14px;
-    height: 36px;
-    /* Ajustado para alinhar visualmente com links, mas mantendo distinção */
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.nav-config-btn:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 0.4);
-}
-
-.nav-config-btn svg {
-    opacity: 0.9;
-}
-
-/* =======================================
-   SEÇÃO DE SIDEBAR - Estilos Definidos Abaixo
-   ======================================= */
-
-/* Link do Instagram com ícone */
-.nav-link-instagram {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.nav-icon-instagram {
-    flex-shrink: 0;
-    vertical-align: middle;
-}
-
-/* ---------------------------------------
-   HAMBÚRGUER MOBILE – padrão desktop: oculto
-   --------------------------------------- */
-.nav-mobile-btn {
-    display: none;
-}
-
-/* Wrapper dos links – desktop: flex inline */
-.nav-links-wrapper {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 2px;
-    width: 100%;
-}
-
-
-/* =======================================
-   RESPONSIVIDADE DO CABEÇALHO
-   ======================================= */
-
-/* --- Tablet (≤ 900px): reduz fontes/espaçamentos --- */
-@media (max-width: 900px) {
-    .header-top-inner {
-        padding: 0 16px;
+    if (duration === null) {
+        duration = type === 'error' ? 5000 : 3000;
     }
 
-    .header-brand-inner {
-        padding: 12px 16px;
-        gap: 14px;
-    }
-
-    .header-title-main {
-        font-size: 1.1rem;
-    }
-
-    .header-title-sub {
-        font-size: 0.78rem;
-    }
-
-    .nav-link {
-        font-size: 0.8rem;
-        padding: 9px 10px;
+    if (duration > 0) {
+        setTimeout(() => {
+            toast.classList.add('removing');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
     }
 }
 
-/* --- Mobile (≤ 640px): hambúrguer + dropdown --- */
-@media (max-width: 640px) {
+function showSuccess(message, duration) {
+    showNotification(message, 'success', duration);
+}
 
-    /* Barra azul: só texto esquerdo */
-    .header-top-inner {
-        padding: 0 14px;
+function showError(message, duration) {
+    showNotification(message, 'error', duration);
+}
+
+function showWarning(message, duration) {
+    showNotification(message, 'warning', duration);
+}
+
+function showInfo(message, duration) {
+    showNotification(message, 'info', duration);
+}
+
+// =============================
+// ESTADO GLOBAL
+// =============================
+
+let dataAtualDeVisualizacao = new Date();
+let eventosCarregados = [];   
+let feriadosNacionais = {};
+let turmaAtual = JSON.parse(localStorage.getItem('ifpr_selected_turma_v1')) || null;
+let turmasCadastradas = [];   
+let liderLogado = false;      
+let eventoEmEdicao = null;
+
+// =============================
+// REGRA DE PERMISSÃO POR TURMA (NOVA)
+// =============================
+
+/**
+ * Verifica se o usuário atual possui permissão de edição/administração
+ * na turma que está atualmente aberta no calendário.
+ */
+function podeEditarTurma() {
+    // 🔐 SEGURANÇA: Frontend não deve confiar em role para autorização; apenas verificar se usuário está autenticado.
+    return Boolean(obterUsuarioLogado());
+}
+
+// =============================
+// SESSÃO DO LÍDER
+// =============================
+
+function salvarSessao(usuario) {
+    if (!usuario || !usuario.email) {
+        limparSessao();
+        return null;
     }
 
-    .top-bar-right {
-        display: none;
+    const sessao = {
+        usuario,
+        autenticadoEm: new Date().toISOString()
+    };
+
+    // 🔐 SEGURANÇA: Persistir sessão apenas em sessionStorage (não em localStorage)
+    sessionStorage.setItem(SESSAO_LIDER_KEY, JSON.stringify(sessao));
+    // Remover possíveis legados em localStorage
+    localStorage.removeItem(SESSAO_LIDER_LEGACY_FLAG);
+    localStorage.removeItem(SESSAO_LIDER_LEGACY_USER);
+
+    return sessao;
+}
+
+function obterSessao() {
+    try {
+        // Primeiro tentar obter sessão do sessionStorage (mais seguro)
+        const sessaoSalva = JSON.parse(sessionStorage.getItem(SESSAO_LIDER_KEY));
+
+        if (sessaoSalva && sessaoSalva.usuario && sessaoSalva.usuario.email) {
+            return sessaoSalva;
+        }
+    } catch (erro) {
+        console.warn('Sessão salva inválida. Limpando dados locais.', erro);
+        limparSessao();
+        return null;
     }
 
-    /* Faixa branca: logo menor */
-    .header-brand-inner {
-        padding: 10px 14px;
-        gap: 11px;
+    try {
+        // Migrar sessão legado de localStorage para sessionStorage (sem roles)
+        const liderLegadoLogado = localStorage.getItem(SESSAO_LIDER_LEGACY_FLAG) === 'true';
+        const usuarioLegado = JSON.parse(localStorage.getItem(SESSAO_LIDER_LEGACY_USER));
+
+        if (liderLegadoLogado && usuarioLegado && usuarioLegado.email) {
+            // Salvar apenas dados minimais na sessão
+            const minimal = { nome: usuarioLegado.nome || usuarioLegado.name || '', email: usuarioLegado.email };
+            const s = salvarSessao(minimal);
+            // limpar legado
+            localStorage.removeItem(SESSAO_LIDER_LEGACY_FLAG);
+            localStorage.removeItem(SESSAO_LIDER_LEGACY_USER);
+            return s;
+        }
+    } catch (erro) {
+        console.warn('Sessão antiga inválida. Limpando dados locais.', erro);
+    }
+    return null;
+}
+
+function limparSessao() {
+    // 🔐 SEGURANÇA: Remover apenas dados de sessão; não manter roles no frontend
+    sessionStorage.removeItem(SESSAO_LIDER_KEY);
+    sessionStorage.removeItem('userName');
+    sessionStorage.removeItem('usuarioEmail');
+    // limpar legados
+    localStorage.removeItem(SESSAO_LIDER_LEGACY_FLAG);
+    localStorage.removeItem(SESSAO_LIDER_LEGACY_USER);
+    localStorage.removeItem('ifpr_user_logged');
+    localStorage.removeItem('usuarioRole');
+    localStorage.removeItem('usuarioTurma');
+    localStorage.removeItem('usuarioEmail');
+}
+
+function obterUsuarioLogado() {
+    const sessao = obterSessao();
+    if (sessao && sessao.usuario) return sessao.usuario;
+
+    // fallback: migrar usuário legado se existir (sem roles)
+    try {
+        const userLogged = JSON.parse(localStorage.getItem('ifpr_user_logged'));
+        if (userLogged && userLogged.email) {
+            const minimal = { nome: userLogged.nome || userLogged.name || '', email: userLogged.email };
+            salvarSessao(minimal);
+            return minimal;
+        }
+    } catch (e) {}
+
+    return null;
+}
+
+function usuarioEstaLogado() {
+    return Boolean(obterUsuarioLogado());
+}
+
+function obterNomeUsuario(usuario) {
+    if (!usuario) return '';
+    return usuario.nome || usuario.name || usuario.email || 'Líder';
+}
+
+function atualizarInterfaceUsuario() {
+    const usuario = obterUsuarioLogado();
+    const menuIconText = document.getElementById('menuIconText');
+    
+    if (usuario) {
+        if (menuIconText) menuIconText.textContent = 'Minha Conta';
+        
+        const nameEl = document.getElementById('loggedUserName');
+        const emailEl = document.getElementById('loggedUserEmail');
+        const turmaEl = document.getElementById('loggedUserTurma');
+        
+        if (nameEl) nameEl.textContent = obterNomeUsuario(usuario);
+        if (emailEl) emailEl.textContent = usuario.email || '--';
+        
+        if (turmaEl) {
+            // Sem role/turma confiáveis no frontend, exibir somente se presente
+            const idTurmaLider = usuario.turma || usuario.turmaId || usuario._id || '';
+            const turma = turmasCadastradas.find(t => String(t.id) === String(idTurmaLider) || String(t.nome) === String(idTurmaLider));
+            turmaEl.textContent = turma ? turma.nome : (usuario.turma || 'Não definida');
+        }
+    } else {
+        if (menuIconText) menuIconText.textContent = 'Login';
     }
 
-    .header-logo svg {
-        width: 46px;
-        height: 46px;
+    const adminFormArea = document.getElementById('adminFormArea');
+    if (adminFormArea) {
+        // Exibe o painel de criação somente se o usuário tiver privilégios na turma aberta
+        // 🔐 SEGURANÇA: Frontend apenas verifica se usuário está logado; backend é responsável pela autorização
+        adminFormArea.style.display = usuarioEstaLogado() ? 'block' : 'none';
+    }
+}
+
+// =============================
+// CARREGAR TURMAS DA API
+// =============================
+async function carregarTurmasDoServidor() {
+    try {
+        const res = await fetch(`${API_BASE}/turmas`);
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        turmasCadastradas = await res.json();
+        return turmasCadastradas;
+    } catch (err) {
+        console.error("Erro ao carregar turmas do servidor:", err);
+        turmasCadastradas = [];
+        return [];
+    }
+}
+
+function getTurmasCadastradas() {
+    return turmasCadastradas;
+}
+
+// =============================
+// RECESSOS ACADÊMICOS
+// =============================
+
+const RECESSOS_ACADEMICOS = [
+    { inicio: "2024-03-28", fim: "2024-03-31", descricao: "Recesso Semana Santa" },
+    { inicio: "2024-07-08", fim: "2024-07-22", descricao: "Recesso Escolar de Inverno" },
+    { inicio: "2024-10-14", fim: "2024-10-15", descricao: "Recesso Dia do Professor" },
+    { inicio: "2024-12-21", fim: "2025-01-31", descricao: "Férias de Verão" },
+    { inicio: "2025-07-07", fim: "2025-07-21", descricao: "Recesso Escolar de Inverno 2025" },
+    { inicio: "2026-07-10", fim: "2026-07-25", descricao: "Férias de Inverno 2026" }
+];
+
+function verificarRecesso(dataChave) {
+    const dataAlvo = new Date(dataChave + "T12:00:00");
+
+    const r = RECESSOS_ACADEMICOS.find(item => {
+        const dataInicio = new Date(item.inicio + "T12:00:00");
+        const dataFim = new Date(item.fim + "T12:00:00");
+        return dataAlvo >= dataInicio && dataAlvo <= dataFim;
+    });
+
+    if (r) return r.descricao;
+
+    const diaSemana = dataAlvo.getDay();
+
+    if (diaSemana === 1) {
+        const t = new Date(dataAlvo);
+        t.setDate(t.getDate() + 1);
+        const chaveAmanha = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+        if (feriadosNacionais && feriadosNacionais[chaveAmanha]) {
+            return `Recesso Ponte (${feriadosNacionais[chaveAmanha].name})`;
+        }
+    } else if (diaSemana === 5) {
+        const t = new Date(dataAlvo);
+        t.setDate(t.getDate() - 1);
+        const chaveOntem = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+        if (feriadosNacionais && feriadosNacionais[chaveOntem]) {
+            return `Recesso Ponte (${feriadosNacionais[chaveOntem].name})`;
+        }
     }
 
-    .header-title-main {
-        font-size: 0.95rem;
+    return null;
+}
+
+// =============================
+// INICIALIZAÇÃO
+// =============================
+
+async function inicializar() {
+    await carregarTurmasDoServidor();  
+    await carregarFeriadosNacionais(dataAtualDeVisualizacao.getFullYear());
+    carregarConfiguracoesTema();
+    liderLogado = usuarioEstaLogado(); 
+    atualizarInterfaceUsuario(); 
+    configurarEventosInterface();
+    verificarEstadoInicial();
+}
+
+function verificarEstadoInicial() {
+    const turmasSelection = document.getElementById('turmasSelection');
+    const calendarApp = document.getElementById('calendarApp');
+
+    if (turmaAtual) {
+        turmasSelection.style.display = 'none';
+        calendarApp.style.display = 'block';
+        document.getElementById('turmaNomeDisplay').innerText = turmaAtual.nome;
+        
+        // Atualiza a visibilidade do painel administrativo ao alternar de turma
+        const adminFormArea = document.getElementById('adminFormArea');
+        if (adminFormArea) {
+            adminFormArea.style.display = podeEditarTurma() ? 'block' : 'none';
+        }
+
+        carregarEExibirCalendario();
+    } else {
+        turmasSelection.style.display = 'block';
+        calendarApp.style.display = 'none';
+        renderizarTurmas();
+    }
+}
+
+function renderizarTurmas() {
+    const turmasList = document.getElementById('turmasList');
+    if (!turmasList) return;
+    turmasList.innerHTML = "";
+
+    const turmas = getTurmasCadastradas();
+
+    if (turmas.length === 0) {
+        turmasList.innerHTML = "<p style='opacity:0.6; text-align:center;'>Nenhuma turma cadastrada no painel admin.</p>";
+        return;
     }
 
-    .header-title-sub {
-        font-size: 0.72rem;
+    turmas.forEach(turma => {
+        const btn = document.createElement('button');
+        btn.className = 'turma-card';
+        btn.innerHTML = `${turma.nome} <br><small style="font-size: 0.8rem; font-weight: normal; opacity: 0.8;">${turma.curso || ''}</small>`;
+        btn.onclick = () => selecionarTurma(turma);
+        turmasList.appendChild(btn);
+    });
+}
+
+function selecionarTurma(turma) {
+    turmaAtual = turma;
+    localStorage.setItem('ifpr_selected_turma_v1', JSON.stringify(turma));
+    verificarEstadoInicial();
+}
+
+// =============================
+// FERIADOS API
+// =============================
+
+async function carregarFeriadosNacionais(ano) {
+    try {
+        const resposta = await fetch(`https://brasilapi.com.br/api/feriados/v1/${ano}`);
+        const lista = await resposta.json();
+
+        feriadosNacionais = {};
+
+        lista.forEach(f => {
+            feriadosNacionais[f.date] = { name: f.name, type: "national" };
+        });
+
+        FERIADOS_ESTADUAIS.forEach(fe => {
+            const chave = ano + fe.date;
+            feriadosNacionais[chave] = { name: fe.name, type: "state" };
+        });
+
+    } catch (erro) {
+        console.error("Erro ao carregar feriados:", erro);
+    }
+}
+
+// =============================
+// CARREGAR EVENTOS DO SERVIDOR
+// =============================
+
+async function carregarEventosDaAPI() {
+    if (!turmaAtual) {
+        eventosCarregados = [];
+        return;
     }
 
-    .header-titles {
-        padding-left: 11px;
+    try {
+        const res = await fetch(`${API_BASE}/eventos/turma/${turmaAtual.id}`);
+        eventosCarregados = await res.json();
+    } catch (err) {
+        console.error("Erro ao carregar eventos:", err);
+        eventosCarregados = [];
+    }
+}
+
+function getEventosPorData(chaveData) {
+    return eventosCarregados.filter(e => e.data === chaveData);
+}
+
+// =============================
+// RENDER CALENDÁRIO
+// =============================
+
+async function carregarEExibirCalendario() {
+    await carregarEventosDaAPI();
+    renderizarCalendario();
+}
+
+function renderizarCalendario() {
+    const grid = document.getElementById('calendarGrid');
+    const displayMes = document.getElementById('monthDisplay');
+    const displayAno = document.getElementById('yearDisplay');
+
+    grid.innerHTML = "";
+
+    const ano = dataAtualDeVisualizacao.getFullYear();
+    const mes = dataAtualDeVisualizacao.getMonth();
+
+    const nomeMes = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(dataAtualDeVisualizacao);
+    displayMes.innerText = nomeMes;
+    displayAno.innerText = ano;
+
+    const primeiroDiaDaSemana = new Date(ano, mes, 1).getDay();
+    const totalDiasNoMes = new Date(ano, mes + 1, 0).getDate();
+
+    for (let i = 0; i < primeiroDiaDaSemana; i++) {
+        grid.appendChild(document.createElement('div'));
     }
 
-    /* Mostra o botão hambúrguer */
-    .nav-mobile-btn {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 5px;
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 0.625rem 1rem;
-        flex-shrink: 0;
+    for (let dia = 1; dia <= totalDiasNoMes; dia++) {
+        const divDia = document.createElement('div');
+        divDia.className = 'day';
+        divDia.innerText = dia;
+
+        const chaveData = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+        const diaSemana = new Date(ano, mes, dia).getDay();
+
+        if (diaSemana === 0 || diaSemana === 6) {
+            divDia.classList.add('day-off');
+        }
+
+        const nomeRecesso = verificarRecesso(chaveData);
+        if (nomeRecesso) {
+            divDia.classList.add('day-recesso');
+            divDia.title = nomeRecesso;
+        }
+
+        if (feriadosNacionais[chaveData]) {
+            const f = feriadosNacionais[chaveData];
+            divDia.classList.add(f.type === "national" ? 'holiday-national' : 'holiday-state');
+            divDia.title = `Feriado: ${f.name}`;
+        }
+
+        divDia.innerText = '';
+
+        const numSpan = document.createElement('span');
+        numSpan.className = 'day-number';
+        numSpan.textContent = dia;
+        divDia.appendChild(numSpan);
+
+        const eventosDoDia = getEventosPorData(chaveData);
+
+        if (eventosDoDia.length > 0) {
+            const ORDEM = ['prova', 'trabalho', 'tarefa', 'evento'];
+            const tiposPresentes = ORDEM.filter(t =>
+                eventosDoDia.some(e => e.categoria === t)
+            );
+
+            const dotsWrapper = document.createElement('div');
+            dotsWrapper.className = 'day-dots';
+            tiposPresentes.forEach(tipo => {
+                const dot = document.createElement('span');
+                dot.className = `day-dot day-dot--${tipo}`;
+                dotsWrapper.appendChild(dot);
+            });
+            divDia.appendChild(dotsWrapper);
+        }
+
+        divDia.onclick = () => abrirPopupDetalhes(chaveData);
+
+        grid.appendChild(divDia);
+    }
+}
+
+// =============================
+// MODAL
+// =============================
+
+function abrirPopupDetalhes(chaveData) {
+    document.getElementById('eventDate').value = chaveData;
+    document.getElementById('modalDateTitle').innerText =
+        chaveData.split('-').reverse().join('/');
+
+    const badge = document.getElementById('specialBadge');
+    const txt = document.getElementById('specialText');
+
+    const recesso = verificarRecesso(chaveData);
+    const feriado = feriadosNacionais[chaveData];
+
+    if (recesso || feriado) {
+        badge.style.display = "block";
+
+        if (feriado) {
+            txt.innerText = `🚩 Feriado: ${feriado.name}`;
+            badge.style.backgroundColor = "var(--color-holiday-nat)";
+        } else {
+            txt.innerText = `🏖️ ${recesso}`;
+            badge.style.backgroundColor = "var(--color-recesso)";
+        }
+
+    } else {
+        badge.style.display = "none";
     }
 
-    /* Posicionamento do Toggle e Hambúrguer no Mobile */
-    .header-nav-inner {
-        flex-direction: row;
-        position: relative;
-        justify-content: flex-start;
-        align-items: center;
-        padding: 0.5rem 0.75rem;
-        gap: 0.5rem;
+    renderizarListaDeEventos(chaveData);
+
+    const adminFormArea = document.getElementById('adminFormArea');
+    if (adminFormArea) {
+        // Exibe o painel de criação dentro do modal apenas se possuir permissão na turma aberta
+        adminFormArea.style.display = podeEditarTurma() ? 'block' : 'none';
+        // Sempre limpar estado de edição ao abrir modal via calendário (novo evento)
+        eventoEmEdicao = null;
+        const editIdInput = document.getElementById('editEventId');
+        if (editIdInput) editIdInput.value = '';
+        const adminFormTitle = document.getElementById('adminFormTitle');
+        if (adminFormTitle) adminFormTitle.innerText = 'Cadastrar Atividade';
     }
 
-    /* Posiciona o toggle fixo no canto direito da faixa (mobile), evitando sobreposição
-       com o botão hambúrguer que permanece no fluxo à esquerda. */
-    .nav-theme-toggle {
-        position: absolute;
-        right: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        display: flex;
-        align-items: center;
-        height: 44px;
-        padding: 0 8px;
-        z-index: 1001;
+    document.getElementById('eventModal').style.display = "flex";
+}
+
+function renderizarListaDeEventos(chaveData) {
+    const listaHtml = document.getElementById('eventsList');
+    listaHtml.innerHTML = "";
+
+    const userLogged = obterUsuarioLogado() || {};
+    const eventosDoDia = getEventosPorData(chaveData);
+
+    if (eventosDoDia.length === 0) {
+        listaHtml.innerHTML = "<p style='opacity:0.5;'>Nenhuma atividade.</p>";
     }
 
-    /* Garante que o hambúrguer fique visível à esquerda acima do conteúdo */
-    .nav-mobile-btn {
-        order: 1;
-        position: relative;
-        z-index: 1002;
+    eventosDoDia.forEach(ev => {
+        const item = document.createElement('div');
+        item.className = 'event-item';
+        item.style.borderLeftColor = `var(--cat-${ev.categoria})`;
+
+        const badgeGeral = ev.tipo === 'geral'
+            ? '<span style="font-size:0.65rem; background:var(--primary); color:white; padding:1px 6px; border-radius:8px; margin-left:6px;">GERAL</span>'
+            : '';
+
+        // Verificar permissões para exibir botões (usar localStorage.ifpr_user_logged)
+        let podeEditar = false;
+        try {
+            const usuario = JSON.parse(localStorage.getItem('ifpr_user_logged')) || null;
+            if (usuario && usuario.role) {
+                const role = String(usuario.role).toLowerCase();
+                const turmaUsuario = usuario.turma || '';
+                const eventoTurma = ev.turmaId || '';
+
+                if (role === 'admin') {
+                    podeEditar = true;
+                } else if (role === 'lider' || role === 'turma_admin' || role === 'líder') {
+                    if (String(eventoTurma) === String(turmaUsuario) && ev.tipo !== 'geral') {
+                        podeEditar = true;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Erro lendo ifpr_user_logged', e);
+        }
+
+        const btnRemover = podeEditar ? `<button class="btn-event-delete" data-id="${ev._id}">🗑️</button>` : '';
+        const btnEditar = podeEditar ? `<button class="btn-event-edit" data-id="${ev._id}">✏️</button>` : '';
+
+        const descHtml = ev.descricao ? `<p class="event-desc">${ev.descricao}</p>` : '';
+
+        item.innerHTML = `
+            <div style="display:flex;justify-content:space-between; align-items:flex-start;">
+                <div>
+                    <strong>${ev.titulo}${badgeGeral}</strong><br>
+                    <small>${ev.hora || '--:--'} | ${(ev.categoria || '').toUpperCase()}</small>
+                    ${descHtml}
+                </div>
+                ${btnEditar}
+                ${btnRemover}
+            </div>
+        `;
+
+        listaHtml.appendChild(item);
+    });
+
+    // Delegação de eventos para botões de editar/excluir adicionados dinamicamente
+    listaHtml.querySelectorAll('.btn-event-delete').forEach(b => {
+        b.addEventListener('click', async (evClick) => {
+            const id = evClick.currentTarget.getAttribute('data-id');
+            if (!id) return;
+            if (!confirm('Deseja realmente excluir este evento?')) return;
+            try {
+                const headers = obterHeadersAutenticacao();
+                const res = await fetch(`${API_BASE}/eventos/${id}`, { method: 'DELETE', headers });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ message: 'Erro ao excluir' }));
+                    console.error('Erro ao excluir evento', err);
+                    showError('Erro ao excluir evento: ' + (err.message || err.error || res.status));
+                    return;
+                }
+                await carregarEventosDaAPI();
+                renderizarCalendario();
+                const chave = document.getElementById('eventDate')?.value;
+                if (chave) renderizarListaDeEventos(chave);
+            } catch (e) {
+                console.error('Erro ao excluir evento', e);
+            }
+        });
+    });
+
+    listaHtml.querySelectorAll('.btn-event-edit').forEach(b => {
+        b.addEventListener('click', (evClick) => {
+            const id = evClick.currentTarget.getAttribute('data-id');
+            if (!id) return;
+
+            // Encontrar evento no cache carregado
+            const eventoAtual = eventosCarregados.find(x => String(x._id) === String(id));
+            if (!eventoAtual) {
+                console.error('Erro ao editar evento: evento não encontrado no cache');
+                return;
+            }
+
+            try {
+                // Preencher formulário do modal com dados do evento
+                eventoEmEdicao = eventoAtual;
+
+                const eventDateInput = document.getElementById('eventDate');
+                const titleInput = document.getElementById('title');
+                const typeInput = document.getElementById('type');
+                const descInput = document.getElementById('description');
+                const timeInput = document.getElementById('time');
+                const editIdInput = document.getElementById('editEventId');
+                const adminFormTitle = document.getElementById('adminFormTitle');
+
+                if (eventDateInput) eventDateInput.value = eventoAtual.data || '';
+                if (titleInput) titleInput.value = eventoAtual.titulo || '';
+                if (typeInput) typeInput.value = eventoAtual.categoria || eventoAtual.tipo || 'prova';
+                if (descInput) descInput.value = eventoAtual.descricao || '';
+                if (timeInput) timeInput.value = eventoAtual.hora || '';
+                if (editIdInput) editIdInput.value = eventoAtual._id || '';
+                if (adminFormTitle) adminFormTitle.innerText = 'Editar Evento';
+
+                // Mostrar o formulário/admin area dentro do modal
+                const adminArea = document.getElementById('adminFormArea');
+                if (adminArea) adminArea.style.display = 'block';
+
+                // Atualizar título do modal (data)
+                const modalDateTitle = document.getElementById('modalDateTitle');
+                if (modalDateTitle) modalDateTitle.innerText = eventoAtual.data ? eventoAtual.data.split('-').reverse().join('/') : 'Editar Evento';
+
+                // Abrir modal
+                const eventoModal = document.getElementById('eventModal');
+                if (eventoModal) eventoModal.style.display = 'flex';
+            } catch (e) {
+                console.error('Erro ao abrir modal de edição', e);
+            }
+        });
+    });
+}
+
+// =============================
+// NAVEGAÇÃO
+// =============================
+
+async function mudarMesCalendar(direcao) {
+    const anoAnterior = dataAtualDeVisualizacao.getFullYear();
+    dataAtualDeVisualizacao.setMonth(dataAtualDeVisualizacao.getMonth() + direcao);
+
+    if (dataAtualDeVisualizacao.getFullYear() !== anoAnterior) {
+        await carregarFeriadosNacionais(dataAtualDeVisualizacao.getFullYear());
     }
 
-    /* Forçar links do menu mobile a branco em todos os estados (acessibilidade/contraste) */
-    .nav-links-wrapper .nav-link:link,
-    .nav-links-wrapper .nav-link:visited,
-    .nav-links-wrapper .nav-link:hover,
-    .nav-links-wrapper .nav-link:focus,
-    .nav-links-wrapper .nav-link:active {
-        color: #ffffff;
+    renderizarCalendario();
+}
+
+// =============================
+// EVENTOS (CRUD VIA API)
+// =============================
+
+/**
+ * Helper para injetar os headers de autenticação exigidos pelo middleware nas requisições de eventos.
+ */
+function obterHeadersAutenticacao() {
+    // Tenta ler usuário salvo em localStorage (ifpr_user_logged) ou sessão mínima
+    try {
+        const raw = localStorage.getItem('ifpr_user_logged');
+        if (raw) {
+            const u = JSON.parse(raw);
+            return {
+                'Content-Type': 'application/json',
+                'X-Usuario-Email': u.email || '',
+                'X-Usuario-Role': u.role || '',
+                'X-Usuario-Turma': u.turma || ''
+            };
+        }
+    } catch (e) {
+        console.warn('obterHeadersAutenticacao: erro lendo localStorage', e);
+    }
+
+    // Fallback: tentar obter email da sessão (não contém role/turma confiáveis)
+    const user = obterUsuarioLogado() || {};
+    const email = user.email || sessionStorage.getItem('usuarioEmail') || '';
+    return {
+        'Content-Type': 'application/json',
+        'X-Usuario-Email': email,
+        'X-Usuario-Role': '',
+        'X-Usuario-Turma': ''
+    };
+}
+
+window.removerAtividade = async (eventoId) => {
+    if (!podeEditarTurma()) {
+        showError('Acesso Negado: Você não possui permissão administrativa nesta turma.');
+        return;
+    }
+
+    if (!confirm("Deseja apagar?")) return;
+
+    try {
+        // Frontend apenas checa sessão; permissões críticas são validadas no backend
+        const headers = obterHeadersAutenticacao();
+        
+        const res = await fetch(`${API_BASE}/eventos/${eventoId}`, { 
+            method: 'DELETE',
+            headers
+        });
+
+        if (!res.ok) {
+            const erro = await res.json();
+            throw new Error(erro.error || 'Erro ao deletar evento');
+        }
+
+        await carregarEventosDaAPI();
+        renderizarCalendario();
+
+        const chave = document.getElementById('eventDate').value;
+        if (chave) renderizarListaDeEventos(chave);
+    } catch (err) {
+        console.error(err);
+        showError(`Erro ao remover evento: ${err.message}`);
+    }
+};
+
+function configurarEventosInterface() {
+    const loginBtn = document.getElementById('menuIcon'); 
+    const loginModal = document.getElementById('loginModal');
+    const closeLoginBtn = document.getElementById('closeLoginModal');
+    
+    const userInfoModal = document.getElementById('userInfoModal');
+    const closeUserInfoBtn = document.getElementById('closeUserInfoModal');
+
+    if (loginBtn) {
+        loginBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (usuarioEstaLogado()) {
+                atualizarInterfaceUsuario(); 
+                if (userInfoModal) userInfoModal.style.display = 'flex';
+            } else {
+                if (loginModal) loginModal.style.display = 'flex';
+            }
+        });
+    }
+
+    if (closeLoginBtn) {
+        closeLoginBtn.addEventListener('click', () => {
+            if (loginModal) loginModal.style.display = 'none';
+        });
     }
     
-    .nav-config-btn {
-        flex-shrink: 0;
+    if (closeUserInfoBtn) {
+        closeUserInfoBtn.addEventListener('click', () => {
+            if (userInfoModal) userInfoModal.style.display = 'none';
+        });
     }
 
-    .nav-ham-line {
-        display: block;
-        width: 22px;
-        height: 2px;
-        background: #ffffff;
-        border-radius: 2px;
-        transition: transform 0.25s ease, opacity 0.25s ease;
+    window.addEventListener('click', (e) => {
+        if (e.target === loginModal) {
+            loginModal.style.display = 'none';
+        }
+        if (e.target === userInfoModal) {
+            userInfoModal.style.display = 'none';
+        }
+    });
+
+    const sidebarLoginForm = document.getElementById('sidebarLoginForm');
+
+    if (sidebarLoginForm) {
+        sidebarLoginForm.onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('loginEmail').value.trim();
+            const senha = document.getElementById('loginPass').value.trim();
+
+            if (!email || !senha) {
+                showError("E-mail e senha são obrigatórios.");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, senha })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    liderLogado = true;
+                    // 🔐 SEGURANÇA: Não salvar dados sensíveis em localStorage. Usar sessionStorage para sessão temporária.
+                    sessionStorage.setItem('ifpr_lider_logado', 'true');
+                    const minimal = { nome: data.user.nome, email: data.user.email };
+                    salvarSessao(minimal);
+                    sessionStorage.setItem('userName', minimal.nome);
+                    if (minimal.email) sessionStorage.setItem('usuarioEmail', minimal.email);
+
+                    // 🔐 AUTENTICAÇÃO: armazenar dados mínimos para headers em localStorage
+                    try {
+                        const usuarioLogged = {
+                            email: (data.user && data.user.email) || '',
+                            role: (data.user && (data.user.role || data.user.cargo)) || '',
+                            turma: (data.user && (data.user.turmaId || data.user.turma || data.user.turmaNome)) || ''
+                        };
+                        localStorage.setItem('ifpr_user_logged', JSON.stringify(usuarioLogged));
+                    } catch (e) {
+                        console.warn('Não foi possível salvar ifpr_user_logged no localStorage', e);
+                    }
+
+                    if (loginModal) loginModal.style.display = 'none';
+                    sidebarLoginForm.reset();
+
+                    atualizarInterfaceUsuario();
+                    if (turmaAtual) renderizarCalendario();
+
+                    showSuccess("Login realizado com sucesso!");
+                } else {
+                    showError(data.error || "E-mail ou senha incorretos.");
+                }
+            } catch (erro) {
+                console.error("Erro ao fazer login:", erro);
+                showError("Erro de conexão com o servidor.");
+            }
+        };
     }
 
-    /* Animação X quando aberto */
-    .nav-btn-active .nav-ham-line:nth-child(1) {
-        transform: translateY(7px) rotate(45deg);
+    const btnLogoutUser = document.getElementById('btnLogoutUser');
+    if (btnLogoutUser) {
+        btnLogoutUser.onclick = () => {
+            if (confirm("Tem certeza que deseja sair?")) {
+                liderLogado = false;
+                limparSessao();
+
+                if (userInfoModal) userInfoModal.style.display = 'none';
+                atualizarInterfaceUsuario();
+
+                if (turmaAtual) renderizarCalendario();
+                
+                showSuccess("Logout realizado com sucesso!");
+            }
+        };
     }
 
-    .nav-btn-active .nav-ham-line:nth-child(2) {
-        opacity: 0;
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        themeToggle.onchange = (e) => {
+            const novoTema = e.target.checked ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', novoTema);
+            localStorage.setItem('ifpr_tema', novoTema);
+        };
     }
 
-    .nav-btn-active .nav-ham-line:nth-child(3) {
-        transform: translateY(-7px) rotate(-45deg);
+    document.getElementById('prevMonth').onclick = () => mudarMesCalendar(-1);
+    document.getElementById('nextMonth').onclick = () => mudarMesCalendar(1);
+
+    const btnVoltarTurmas = document.getElementById('btnVoltarTurmas');
+    if (btnVoltarTurmas) {
+        btnVoltarTurmas.onclick = () => {
+            turmaAtual = null;
+            localStorage.removeItem('ifpr_selected_turma_v1');
+            verificarEstadoInicial();
+        };
     }
 
-    /* Links: ocultos por padrão no mobile */
-    .nav-links-wrapper {
-        display: none;
-        flex-direction: column;
-        gap: 0;
-        width: 100%;
-        background-color: #1a6830;
-        border-top: 1px solid rgba(255, 255, 255, 0.15);
-    }
-
-    /* Aberto via JS */
-    .nav-links-wrapper.nav-open {
-        display: flex;
-        width: 100%;
-    }
-
-    .nav-link {
-        font-size: 0.9rem;
-        padding: 0.8rem 1.25rem;
-        border-radius: 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        justify-content: flex-start;
-        white-space: nowrap;
-    }
-
-    .nav-link:last-child {
-        border-bottom: none;
-    }
-
-    .nav-link:hover {
-        background-color: rgba(255, 255, 255, 0.12);
-    }
-
-    /* ========== LOGIN RESPONSIVO ========== */
-    .login-wrapper {
-        padding: 16px;
-        min-height: auto;
-        /* Ajusta para não forçar 100vh */
-        padding-top: 140px;
-        /* Espaço do header */
-        padding-bottom: 40px;
-    }
-
-    .login-card {
-        max-width: 100%;
-        padding: 22px;
-        gap: 16px;
-    }
-
-    .login-title {
-        font-size: 1.3rem;
-    }
-
-    .login-subtitle {
-        font-size: 0.85rem;
-    }
-
-    .login-form .input-group input {
-        height: 42px;
-        font-size: 0.9rem;
-    }
-
-    .btn-login,
-    .btn-save {
-        height: 42px;
-        font-size: 0.9rem;
-    }
-
-    .btn-sidebar {
-        padding: 10px 12px;
-        font-size: 0.9rem;
-    }
-}
-
-/* --- Telas muito pequenas (≤ 360px) --- */
-@media (max-width: 360px) {
-    .top-bar-left {
-        font-size: 0.58rem;
-    }
-
-    .header-logo svg {
-        width: 38px;
-        height: 38px;
-    }
-
-    .header-title-main {
-        font-size: 0.85rem;
-    }
-
-    .header-title-sub {
-        font-size: 0.65rem;
-    }
-
-    .header-titles {
-        padding-left: 9px;
-    }
-}
-
-/* =======================================
-   SIDEBAR (Drawer Modal)
-   ======================================= */
-
-.sidebar {
-    position: fixed;
-    left: -320px;
-    top: 0;
-    width: 300px;
-    height: 100%;
-    background: var(--bg-card);
-    z-index: 1002;
-    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 0;
-    box-shadow: 4px 0 25px rgba(0, 0, 0, 0.15);
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-}
-
-.sidebar.active {
-    transform: translateX(320px);
-}
-
-.sidebar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-}
-
-.sidebar-header h3 {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-main);
-    display: flex;
-    align-items: center;
-    margin: 0;
-}
-
-.close-menu-btn {
-    background: none;
-    border: none;
-    font-size: 1.6rem;
-    line-height: 1;
-    cursor: pointer;
-    color: var(--text-main);
-    opacity: 0.6;
-    transition: opacity 0.2s, color 0.2s;
-    padding: 0 8px;
-}
-
-.close-menu-btn:hover {
-    opacity: 1;
-    color: var(--primary);
-}
-
-.menu-items {
-    list-style: none;
-    padding: 12px 20px;
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.menu-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    z-index: 1001;
-    backdrop-filter: blur(2px);
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
-}
-
-.menu-overlay.active {
-    opacity: 1;
-    visibility: visible;
-}
-
-/* Responsividade do Sidebar */
-@media (max-width: 600px) {
-    .sidebar {
-        width: 80%;
-        left: -85%;
-    }
-
-    .sidebar.active {
-        transform: translateX(106.25%);
-        /* Ajuste proporcional para o mobile */
-    }
-}
-
-/* Calendário */
-.calendar-navigation {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: 20px 0;
-}
-
-.month-title h2 {
-    color: var(--primary);
-    text-transform: capitalize;
-    font-size: 1.4rem;
-}
-
-.nav-btn {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    cursor: pointer;
-    color: var(--text-main);
-    font-weight: bold;
-}
-
-/* Turmas Selection */
-.turmas-container {
-    padding: 30px 15px;
-    text-align: center;
-}
-
-.turmas-container h2 {
-    color: var(--primary);
-    margin-bottom: 25px;
-    font-size: 1.5rem;
-}
-
-.turmas-list {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-.turma-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-left: 5px solid var(--primary);
-    border-radius: 12px;
-    padding: 24px;
-    color: var(--text-main);
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-    text-align: left;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.turma-card-header {
-    font-size: 1.6rem;
-    font-weight: 800;
-    color: var(--primary);
-    line-height: 1.2;
-    transition: color 0.3s ease;
-}
-
-.turma-card-body {
-    font-size: 0.95rem;
-    opacity: 0.85;
-    line-height: 1.5;
-    transition: color 0.3s ease;
-}
-
-.turma-card-body strong {
-    font-weight: 700;
-    color: var(--text-main);
-}
-
-.turma-card:hover {
-    background: var(--primary);
-    transform: translateY(-4px);
-    box-shadow: 0 12px 20px -5px rgba(50, 160, 65, 0.2);
-    border-color: var(--primary);
-}
-
-.turma-card:hover .turma-card-header,
-.turma-card:hover .turma-card-body,
-.turma-card:hover .turma-card-body strong {
-    color: white !important;
-}
-
-.turma-card:hover {
-    background: var(--primary);
-    color: white;
-    transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-}
-
-/* Header do Calendário Específico */
-.calendar-header-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: 20px 0;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border);
-}
-
-.btn-voltar {
-    background: transparent;
-    border: none;
-    color: var(--primary);
-    font-weight: bold;
-    font-size: 1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 5px 0;
-}
-
-.btn-voltar:hover {
-    text-decoration: underline;
-}
-
-.turma-nome-display {
-    color: var(--text-main);
-    font-size: 1.1rem;
-}
-
-.calendar-card {
-    background: var(--bg-card);
-    border-radius: 15px;
-    padding: 15px;
-    border: 1px solid var(--border);
-}
-
-.weekdays {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    text-align: center;
-    font-size: 0.7rem;
-    font-weight: bold;
-    color: var(--primary);
-    margin-bottom: 15px;
-}
-
-.calendar-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
-    /* Permite que os anéis box-shadow ultrapassem a célula sem serem cortados */
-    overflow: visible;
-    padding: 6px;
-}
-
-.day {
-    aspect-ratio: 1/1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    cursor: pointer;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
-    position: relative;
-    transition: box-shadow 0.15s ease;
-    gap: 2px;
-    padding: 2px;
-}
-
-/* Número do dia */
-.day-number {
-    font-size: 0.88rem;
-    font-weight: 500;
-    line-height: 1;
-    color: inherit;
-}
-
-/* ── Bolinhas de eventos ─────────────────── */
-.day-dots {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    flex-wrap: wrap;
-    max-width: 100%;
-}
-
-.day-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.day-dot--prova {
-    background-color: var(--cat-prova);
-}
-
-.day-dot--trabalho {
-    background-color: var(--cat-trabalho);
-}
-
-.day-dot--tarefa {
-    background-color: var(--cat-tarefa);
-}
-
-.day-dot--evento {
-    background-color: var(--cat-evento);
-}
-
-/* Destaques do Calendário */
-.day-off {
-    background-color: var(--color-off) !important;
-    color: #64748b;
-}
-
-.day-recesso {
-    background-color: var(--color-recesso) !important;
-    color: #64748b !important;
-    font-weight: bold;
-}
-
-.holiday-national {
-    background-color: var(--color-holiday-nat) !important;
-    color: #64748b !important;
-    font-weight: bold;
-}
-
-.holiday-state {
-    background-color: var(--color-holiday-est) !important;
-    color: #64748b !important;
-    font-weight: bold;
-}
-
-/* Modal */
-.modal {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    z-index: 2000;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    backdrop-filter: blur(4px);
-}
-
-.modal-content {
-    background: var(--bg-card);
-    width: 100%;
-    max-width: 400px;
-    border-radius: 20px;
-    padding: 25px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-}
-
-.close-modal-btn {
-    background: none;
-    border: none;
-    font-size: 2rem;
-    cursor: pointer;
-    color: var(--text-main);
-    float: right;
-}
-
-/* ===============================================
-   MODAL DE LOGIN LÍDER (Novo Modal Centralizado)
-   =============================================== */
-
-/* Overlay do Modal de Login */
-.modal-overlay {
-    display: none; /* Escondido por padrão */
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6); /* Fundo escurecido */
-    z-index: 2000;
-    justify-content: center;
-    align-items: center;
-    backdrop-filter: blur(4px); /* Efeito opcional de desfoque */
-}
-
-/* Card do Login */
-.login-modal-card {
-    background: var(--bg-card);
-    width: 90%;
-    max-width: 400px;
-    padding: 2rem;
-    border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    position: relative;
-    animation: modalFadeIn 0.3s ease-out;
-}
-
-@keyframes modalFadeIn {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* Botão de Login dentro do Modal */
-.btn-login-submit {
-    width: 100%;
-    padding: 12px;
-    background-color: #2f9e41; /* Verde IFPR */
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    margin-top: 10px;
-    transition: background 0.3s;
-}
-
-.btn-login-submit:hover {
-    background-color: #257a33;
-}
-
-/* Ajustes nos inputs para o modal */
-.login-modal-card .input-group {
-    margin-bottom: 15px;
-    display: flex;
-    flex-direction: column;
-}
-
-.login-modal-card label {
-    margin-bottom: 5px;
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-
-.login-modal-card input {
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-/* Header do Modal */
-.login-modal-card .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-}
-
-.login-modal-card .modal-header h3 {
-    margin: 0;
-    font-size: 1.3rem;
-    color: var(--text-main);
-}
-
-.login-modal-card .close-modal-btn {
-    float: none;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.special-badge {
-    margin-top: 10px;
-    padding: 8px;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    background: var(--color-recesso);
-    border: 1px solid var(--primary);
-}
-
-.events-container {
-    margin: 15px 0;
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.event-item {
-    background: var(--bg-body);
-    padding: 14px;
-    border-radius: 12px;
-    margin-bottom: 12px;
-    border-left: 5px solid var(--primary);
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 15px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.event-content {
-    flex-grow: 1;
-}
-
-.event-actions {
-    display: flex;
-    gap: 8px;
-    flex-shrink: 0;
-}
-
-.btn-action {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px;
-    cursor: pointer;
-    font-size: 1.1rem;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-main);
-}
-
-.btn-action:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.btn-action.edit:hover {
-    color: #3b82f6;
-    border-color: #3b82f6;
-    background: #eff6ff;
-}
-
-.btn-action.delete:hover {
-    color: #ef4444;
-    border-color: #ef4444;
-    background: #fef2f2;
-}
-
-.event-desc {
-    margin-top: 8px;
-    font-size: 0.85rem;
-    color: var(--text-main);
-    opacity: 0.8;
-    white-space: pre-wrap;
-}
-
-/* Legenda */
-.legend-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-    margin: 25px 0;
-}
-
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.7rem;
-    font-weight: bold;
-    color: #64748b;
-}
-
-.dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-}
-
-.dot.off {
-    background: var(--color-off);
-}
-
-.dot.recesso {
-    background: var(--color-recesso);
-    border: 1px dashed var(--primary);
-}
-
-.dot.holiday-nat {
-    background: var(--color-holiday-nat);
-}
-
-.dot.prova {
-    background: var(--cat-prova);
-}
-
-.dot.trabalho {
-    background: var(--cat-trabalho);
-}
-
-.dot.tarefa {
-    background: var(--cat-tarefa);
-}
-
-.dot.evento {
-    background: var(--cat-evento);
-}
-
-/* =======================================
-   BOTÕES SIDEBAR
-   ======================================= */
-
-.btn-sidebar {
-    width: 100%;
-    padding: 11px 14px;
-    border: none;
-    border-radius: 10px;
-    background: var(--primary);
-    color: white;
-    cursor: pointer;
-    font-weight: 500;
-    font-size: 0.95rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 6px rgba(50, 160, 65, 0.15);
-    font-family: 'Inter', sans-serif;
-}
-
-.btn-sidebar:hover {
-    background: #2a8f38;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(50, 160, 65, 0.25);
-}
-
-.btn-sidebar:active {
-    transform: translateY(0);
-}
-
-.btn-logout {
-    background-color: #64748b;
-    box-shadow: 0 2px 6px rgba(100, 116, 139, 0.15);
-}
-
-.btn-logout:hover {
-    background-color: #475569;
-    box-shadow: 0 4px 12px rgba(100, 116, 139, 0.25);
-}
-
-/* =======================================
-   FORMULÁRIOS (Input, Select, Textarea)
-   ======================================= */
-
-.input-group {
-    margin-bottom: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.input-group label {
-    display: block;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-main);
-}
-
-.input-group input,
-.input-group select,
-.input-group textarea {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--bg-body);
-    color: var(--text-main);
-    font-family: 'Inter', sans-serif;
-    font-size: 0.95rem;
-    transition: all 0.2s ease;
-}
-
-.input-group input:focus,
-.input-group select:focus,
-.input-group textarea:focus {
-    border-color: var(--primary);
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(50, 160, 65, 0.1);
-    background: var(--bg-card);
-}
-
-.input-group textarea {
-    resize: vertical;
-    min-height: 100px;
-    line-height: 1.5;
-}
-
-.input-group input::placeholder {
-    color: var(--text-main);
-    opacity: 0.5;
-}
-
-.btn-save {
-    width: 100%;
-    padding: 11px 16px;
-    height: 46px;
-    border: none;
-    border-radius: 10px;
-    background: var(--primary);
-    color: white;
-    font-weight: 600;
-    font-size: 0.95rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-family: 'Inter', sans-serif;
-    box-shadow: 0 2px 6px rgba(50, 160, 65, 0.15);
-}
-
-.btn-save:hover:not(:disabled) {
-    background: #2a8f38;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(50, 160, 65, 0.25);
-}
-
-.btn-save:active:not(:disabled) {
-    transform: translateY(0);
-}
-
-.btn-save:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.switch {
-    position: relative;
-    width: 40px;
-    height: 22px;
-    display: inline-block;
-}
-
-.switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.slider {
-    position: absolute;
-    cursor: pointer;
-    inset: 0;
-    background-color: #cbd5e1;
-    border-radius: 34px;
-    transition: 0.4s;
-}
-
-.slider:before {
-    position: absolute;
-    content: "";
-    height: 16px;
-    width: 16px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    border-radius: 50%;
-    transition: 0.4s;
-}
-
-input:checked+.slider {
-    background-color: var(--primary);
-}
-
-input:checked+.slider:before {
-    transform: translateX(18px);
-}
-
-/* ===========================================
-   RODAPÉ INSTITUCIONAL
-   =========================================== */
-
-.footer-ifpr {
-    margin-top: 40px;
-    font-family: 'Inter', sans-serif;
-}
-
-/* Área principal */
-.footer-main {
-    background-color: #155724;
-    color: #e8f5e9;
-    padding: 40px 24px 30px;
-}
-
-.footer-inner {
-    max-width: 1200px;
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: 1.4fr 0.8fr 1fr;
-    gap: 36px;
-}
-
-/* Colunas */
-.footer-col-title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #ffffff;
-    margin-bottom: 14px;
-    letter-spacing: 0.02em;
-}
-
-.footer-col-text {
-    font-size: 0.82rem;
-    line-height: 1.65;
-    color: #c8e6c9;
-}
-
-/* Navegação nos rodapé */
-.footer-nav {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.footer-nav li {
-    font-size: 0.82rem;
-    color: #c8e6c9;
-}
-
-.footer-nav a {
-    color: #c8e6c9;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: color 0.2s ease, transform 0.2s ease;
-}
-
-.footer-nav a:hover {
-    color: #ffffff;
-    transform: translateX(3px);
-}
-
-.footer-nav a svg {
-    opacity: 0.7;
-    transition: opacity 0.2s ease;
-}
-
-.footer-nav a:hover svg {
-    opacity: 1;
-}
-
-/* Faixa inferior */
-.footer-bottom {
-    background-color: #0e3d1a;
-    text-align: center;
-    padding: 14px 24px;
-}
-
-.footer-bottom p {
-    font-size: 0.72rem;
-    color: #a5d6a7;
-    letter-spacing: 0.04em;
-    margin: 0;
-}
-
-/* --- Modo Noturno --- */
-[data-theme="dark"] .footer-main {
-    background-color: #162b2e;
-}
-
-[data-theme="dark"] .footer-bottom {
-    background-color: #0d1f21;
-}
-
-[data-theme="dark"] .footer-col-text,
-[data-theme="dark"] .footer-nav li,
-[data-theme="dark"] .footer-nav a {
-    color: #94a3b8;
-}
-
-[data-theme="dark"] .footer-nav a:hover {
-    color: #e2e8f0;
-}
-
-[data-theme="dark"] .footer-bottom p {
-    color: #64748b;
-}
-
-/* --- Responsividade do Rodapé --- */
-@media (max-width: 900px) {
-    .footer-inner {
-        grid-template-columns: 1fr 1fr;
-        gap: 28px;
+    document.querySelector('.close-modal-btn').onclick = () => {
+        const modal = document.getElementById('eventModal');
+        if (modal) modal.style.display = "none";
+        // limpar estado de edição ao fechar modal
+        eventoEmEdicao = null;
+        const editIdInput = document.getElementById('editEventId');
+        if (editIdInput) editIdInput.value = '';
+        const adminFormTitle = document.getElementById('adminFormTitle');
+        if (adminFormTitle) adminFormTitle.innerText = 'Cadastrar Atividade';
+        // limpar campos do formulário
+        const titleInput = document.getElementById('title'); if (titleInput) titleInput.value = '';
+        const descInput = document.getElementById('description'); if (descInput) descInput.value = '';
+        const timeInput = document.getElementById('time'); if (timeInput) timeInput.value = '';
+        const typeInput = document.getElementById('type'); if (typeInput) typeInput.value = 'prova';
+    };
+
+    document.getElementById('eventForm').onsubmit = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!podeEditarTurma()) {
+            showError('Acesso Negado: Você não possui permissão para criar eventos nesta turma.');
+            return false;
+        }
+
+        const chave = document.getElementById('eventDate').value;
+        const userLogged = obterUsuarioLogado() || {};
+
+        let idTurmaEvento = turmaAtual ? (turmaAtual.id || turmaAtual.nome) : null;
+        // Se o usuário tiver uma turma associada no perfil (somente para conveniência de UI), usar como fallback
+        const idTurmaUsuario = userLogged.turma || userLogged.turmaId || userLogged._id || null;
+        if (!idTurmaEvento && idTurmaUsuario) idTurmaEvento = String(idTurmaUsuario);
+
+        if (!idTurmaEvento) {
+            showError('Erro: Nenhuma turma identificada.');
+            return false;
+        }
+
+        // Se estiver editando um evento existente, usar PUT
+        if (eventoEmEdicao && eventoEmEdicao._id) {
+            const dadosAtualizados = {
+                titulo: document.getElementById('title').value,
+                categoria: document.getElementById('type').value,
+                data: chave,
+                hora: document.getElementById('time').value,
+                descricao: document.getElementById('description').value
+            };
+
+            try {
+                const headers = Object.assign({ 'Content-Type': 'application/json' }, obterHeadersAutenticacao());
+                const res = await fetch(`${API_BASE}/eventos/${eventoEmEdicao._id}`, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify(dadosAtualizados)
+                });
+
+                if (!res.ok) {
+                    const erro = await res.json().catch(() => ({ error: 'Erro ao editar' }));
+                    throw new Error(erro.error || 'Erro ao editar evento');
+                }
+
+                // limpar estado de edição
+                eventoEmEdicao = null;
+                const editIdInput = document.getElementById('editEventId');
+                if (editIdInput) editIdInput.value = '';
+                const adminFormTitle = document.getElementById('adminFormTitle');
+                if (adminFormTitle) adminFormTitle.innerText = 'Cadastrar Atividade';
+
+                document.getElementById('eventModal').style.display = "none";
+                showSuccess('Atividade atualizada com sucesso!');
+                await carregarEventosDaAPI();
+                renderizarListaDeEventos(chave);
+                renderizarCalendario();
+
+                // limpar campos
+                document.getElementById('title').value = '';
+                document.getElementById('description').value = '';
+                document.getElementById('time').value = '';
+                document.getElementById('type').value = 'prova';
+
+                return false;
+            } catch (err) {
+                console.error('Erro ao editar evento', err);
+                showError(`Erro ao editar evento: ${err.message}`);
+                return false;
+            }
+        }
+
+        // Caso contrário, criar novo evento (POST)
+        const novo = {
+            titulo: document.getElementById('title').value,
+            categoria: document.getElementById('type').value,
+            tipo: 'turma',
+            data: chave,
+            hora: document.getElementById('time').value,
+            descricao: document.getElementById('description').value,
+            turmaId: idTurmaEvento,
+            criadoPor: 'líder',
+            usuarioId: userLogged.email || 'unknown'
+        };
+
+        try {
+            const headers = obterHeadersAutenticacao();
+
+            const res = await fetch(`${API_BASE}/eventos`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(novo)
+            });
+
+            if (res.status === 401 || res.status === 403) {
+                console.error('Usuário não autenticado ou sem permissão');
+                const erro = await res.json().catch(() => ({ error: 'Acesso negado' }));
+                throw new Error(erro.error || 'Acesso negado');
+            }
+
+            if (!res.ok) {
+                const erro = await res.json();
+                throw new Error(erro.error || 'Erro ao salvar evento');
+            }
+
+            document.getElementById('eventModal').style.display = "none";
+
+            showSuccess('Atividade cadastrada com sucesso!');
+            await carregarEventosDaAPI();
+            renderizarListaDeEventos(chave);
+            renderizarCalendario();
+
+            document.getElementById('title').value = '';
+            document.getElementById('description').value = '';
+            document.getElementById('time').value = '';
+            document.getElementById('type').value = 'prova';
+
+            return false;
+        } catch (err) {
+            console.error(err);
+            showError(`Erro ao salvar evento: ${err.message}`);
+            return false;
+        }
+    };
+}
+
+// =============================
+// TEMA
+// =============================
+
+function carregarConfiguracoesTema() {
+    const t = localStorage.getItem('ifpr_tema') || 'light';
+    document.documentElement.setAttribute('data-theme', t);
+
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        themeToggle.checked = (t === 'dark');
     }
 }
 
-@media (max-width: 640px) {
-    .footer-main {
-        padding: 30px 20px 24px;
+// =============================
+// NAVEGAÇÃO ENTRE TELAS
+// =============================
+
+function navigateToAbout(event) {
+    if (event) {
+        event.preventDefault();
     }
 
-    .footer-inner {
-        grid-template-columns: 1fr;
-        gap: 24px;
-        text-align: center;
+    document.getElementById('turmasSelection').style.display = 'none';
+    document.getElementById('calendarApp').style.display = 'none';
+    document.getElementById('contactsScreen').style.display = 'none';
+    document.getElementById('aboutScreen').style.display = 'block';
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    fecharMenuMobileSeAberto();
+}
+
+function navigateToHome(event) {
+    if (event) {
+        event.preventDefault();
     }
 
-    .footer-nav {
-        align-items: center;
+    turmaAtual = null;
+    localStorage.removeItem('ifpr_selected_turma_v1');
+
+    document.getElementById('aboutScreen').style.display = 'none';
+    document.getElementById('contactsScreen').style.display = 'none';
+    document.getElementById('calendarApp').style.display = 'none';
+    document.getElementById('turmasSelection').style.display = 'block';
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    fecharMenuMobileSeAberto();
+}
+
+function navigateToContacts(event) {
+    if (event) {
+        event.preventDefault();
     }
 
-    .footer-nav a:hover {
-        transform: none;
-    }
+    document.getElementById('turmasSelection').style.display = 'none';
+    document.getElementById('calendarApp').style.display = 'none';
+    document.getElementById('aboutScreen').style.display = 'none';
+    document.getElementById('contactsScreen').style.display = 'block';
 
-    .footer-bottom {
-        padding: 12px 16px;
-    }
+    carregarContatosPublico();
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    fecharMenuMobileSeAberto();
 }
 
-/* =========================================
-   TELA "SOBRE O PROJETO" - Segunda Tela
-   ========================================= */
-
-.about-screen-content {
-    animation: fadeIn 0.3s ease-out;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
-}
-
-.about-screen-inner {
-    display: flex;
-    flex-direction: column;
-}
-
-/* Removed redundant about-header styles */
-
-/* Página Sobre (sobre.html) */
-.about-page-content {
-    padding: 20px 0 30px 0;
-    width: 100%;
-}
-
-.about-page-title {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: var(--primary);
-    margin: 20px 0 10px 0;
-    text-align: center;
-}
-
-/* Página Contatos (contatos.html) */
-.contacts-page-content {
-    padding: 20px 0 30px 0;
-    width: 100%;
-}
-
-.contacts-page-header {
-    text-align: center;
-    margin-bottom: 30px;
-    padding: 0 15px;
-}
-
-.contacts-page-title {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: var(--primary);
-    margin: 20px 0 10px 0;
-}
-
-.contacts-subtitle {
-    font-size: 0.95rem;
-    color: var(--text-main);
-    opacity: 0.8;
-    margin: 5px 0 0 0;
-}
-
-.contacts-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-    max-width: 480px;
-    margin: 0 auto;
-    padding: 0 15px;
-    width: 100%;
-}
-
-.contact-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    transition: all 0.3s ease;
-}
-
-.contact-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
-}
-
-.contact-card-header {
-    margin-bottom: 12px;
-    border-bottom: 2px solid var(--primary);
-    padding-bottom: 10px;
-}
-
-.contact-name {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--primary);
-    margin: 0 0 4px 0;
-}
-
-.contact-setor {
-    font-size: 0.85rem;
-    color: var(--text-main);
-    opacity: 0.7;
-    margin: 0;
-}
-
-.contact-card-body {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.contact-description {
-    font-size: 0.9rem;
-    line-height: 1.5;
-    color: var(--text-main);
-    margin: 0 0 8px 0;
-}
-
-.contact-info {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.contact-info-item {
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.contact-info-item strong {
-    color: var(--primary);
-    min-width: fit-content;
-}
-
-.contact-info-item a {
-    color: var(--primary);
-    text-decoration: none;
-    word-break: break-all;
-}
-
-.contact-info-item a:hover {
-    text-decoration: underline;
-}
-
-.contacts-loading {
-    text-align: center;
-    padding: 30px 15px;
-    color: var(--text-main);
-    opacity: 0.6;
-}
-
-.contacts-error {
-    text-align: center;
-    padding: 30px 15px;
-    color: #ef4444;
-    background: rgba(239, 68, 68, 0.1);
-    border-radius: 8px;
-    font-weight: 600;
-}
-
-.contacts-empty {
-    text-align: center;
-    padding: 40px 15px;
-    color: var(--text-main);
-    opacity: 0.6;
-    font-size: 0.95rem;
-}
-
-@media (max-width: 640px) {
-    .contacts-page-title {
-        font-size: 1.5rem;
-    }
-
-    .contacts-subtitle {
-        font-size: 0.9rem;
-    }
-
-    .contact-card {
-        padding: 14px;
-    }
-
-    .contact-name {
-        font-size: 1rem;
-    }
-
-    .contact-setor {
-        font-size: 0.8rem;
+function fecharMenuMobileSeAberto() {
+    const navLinksWrapper = document.getElementById('navLinks');
+    const navMobileToggle = document.getElementById('navMobileToggle');
+    if (navLinksWrapper && navLinksWrapper.classList.contains('nav-open')) {
+        navLinksWrapper.classList.remove('nav-open');
+        if (navMobileToggle) {
+            navMobileToggle.setAttribute('aria-expanded', 'false');
+            navMobileToggle.classList.remove('nav-btn-active');
+        }
     }
 }
 
-.about-content {
-    flex: 1;
-    padding: 20px 15px 30px 15px;
-    max-width: 480px;
-    margin: 0 auto;
-    width: 100%;
-}
+async function carregarContatosPublico() {
+    const container = document.getElementById('contactsContainer');
 
-/* Seções internas */
-.about-section {
-    margin-bottom: 24px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid var(--border);
-}
+    if (!container) return;
 
-.about-section:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
+    try {
+        const headers = Object.assign({ 'Content-Type': 'application/json' }, obterHeadersAutenticacao());
+        const response = await fetch(`${API_BASE}/contatos`, { headers });
 
-.about-subtitle {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: var(--primary);
-    margin: 0 0 10px 0;
-    line-height: 1.3;
-}
+        if (!response.ok) {
+            throw new Error(`Erro ao buscar contatos do servidor: ${response.status}`);
+        }
 
-.about-subsection-title {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-main);
-    margin: 0 0 12px 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
+        const contatos = await response.json();
 
-.about-text {
-    font-size: 0.95rem;
-    line-height: 1.6;
-    color: var(--text-main);
-    margin: 10px 0;
-    text-align: justify;
-}
+        console.log("Contatos carregados da API:", contatos);
 
-.about-list {
-    list-style: none;
-    padding-left: 0;
-    margin: 10px 0;
-}
+        renderizarContatosPublico(contatos);
 
-.about-list li {
-    padding: 8px 0 8px 24px;
-    position: relative;
-    font-size: 0.95rem;
-    line-height: 1.5;
-    color: var(--text-main);
-}
+    } catch (err) {
 
-.about-list li:before {
-    content: "▸";
-    color: var(--primary);
-    position: absolute;
-    left: 8px;
-    font-weight: bold;
-}
+        console.error("Erro ao carregar contatos:", err);
 
-.color-badge {
-    display: inline-block;
-    font-size: 1rem;
-    margin-right: 6px;
-    line-height: 1;
-}
-
-.color-badge.prova {
-    color: #ef4444;
-}
-
-.color-badge.trabalho {
-    color: #3b82f6;
-}
-
-.color-badge.tarefa {
-    color: #10b981;
-}
-
-.color-badge.evento {
-    color: #f59e0b;
-}
-
-/* Responsividade da tela Sobre */
-@media (max-width: 640px) {
-    .about-header-top {
-        padding: 14px 12px;
-    }
-
-    .about-btn-back {
-        font-size: 0.9rem;
-        padding: 6px 10px;
-    }
-
-    .about-header-title {
-        font-size: 1.1rem;
-    }
-
-    .about-content {
-        padding: 16px 12px 25px 12px;
-    }
-
-    .about-subtitle {
-        font-size: 1.1rem;
-    }
-
-    .about-subsection-title {
-        font-size: 0.95rem;
-    }
-
-    .about-text {
-        font-size: 0.9rem;
-    }
-
-    .about-list li {
-        font-size: 0.9rem;
-        padding: 6px 0 6px 24px;
+        container.innerHTML = `
+            <div class="contacts-empty">
+                Não foi possível carregar os contatos no momento.
+            </div>
+        `;
     }
 }
 
-/* ========================================
-   LOGIN MODERNO - Telas de Autenticação
-   ======================================== */
+function renderizarContatosPublico(contatos) {
+    const container = document.getElementById('contactsContainer');
 
-/* Container Principal do Login */
-.login-wrapper {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    background: var(--bg-body);
-}
+    if (!container) return;
 
-/* Card de Login */
-.login-card {
-    width: 100%;
-    max-width: 400px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 28px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    animation: slideInUp 0.3s ease-out;
-}
+    container.innerHTML = '';
 
-@keyframes slideInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Cabeçalho do Login */
-.login-header {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    text-align: center;
-}
-
-.login-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--primary);
-    margin: 0;
-    line-height: 1.3;
-}
-
-.login-subtitle {
-    font-size: 0.9rem;
-    color: var(--text-main);
-    opacity: 0.7;
-    margin: 0;
-    line-height: 1.4;
-}
-
-/* Tabs de Login (Entrar/Criar Conta) */
-.login-tabs {
-    display: flex;
-    gap: 0;
-    border-bottom: 1px solid var(--border);
-}
-
-.login-tab {
-    flex: 1;
-    padding: 12px 16px;
-    text-align: center;
-    font-size: 0.95rem;
-    font-weight: 500;
-    color: var(--text-main);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    opacity: 0.6;
-    transition: all 0.2s ease;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-}
-
-.login-tab:hover {
-    opacity: 0.85;
-}
-
-.login-tab.active {
-    color: var(--primary);
-    opacity: 1;
-    border-bottom-color: var(--primary);
-}
-
-/* Formulário de Login */
-.login-form {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-/* Aprimoramento de Inputs para Login */
-.login-form .input-group {
-    margin-bottom: 0;
-}
-
-.login-form .input-group label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    margin-bottom: 6px;
-    color: var(--text-main);
-}
-
-.login-form .input-group input {
-    height: 46px;
-    padding: 0 12px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--bg-body);
-    color: var(--text-main);
-    font-family: 'Inter', sans-serif;
-    font-size: 0.95rem;
-    transition: all 0.2s ease;
-}
-
-.login-form .input-group input:focus {
-    border-color: var(--primary);
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(50, 160, 65, 0.1);
-    background: var(--bg-card);
-}
-
-.login-form .input-group input::placeholder {
-    color: var(--text-main);
-    opacity: 0.5;
-}
-
-/* Botão de Login */
-.btn-login {
-    height: 46px;
-    border-radius: 10px;
-    background: var(--primary);
-    color: white;
-    font-weight: 600;
-    font-size: 0.95rem;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 8px;
-}
-
-.btn-login:hover:not(:disabled) {
-    filter: brightness(0.95);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(50, 160, 65, 0.25);
-}
-
-.btn-login:active:not(:disabled) {
-    transform: translateY(0);
-}
-
-.btn-login:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-/* Mensagem de Erro do Login */
-.login-error {
-    display: none;
-    padding: 12px;
-    border-radius: 10px;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    color: #ef4444;
-    font-size: 0.9rem;
-    font-weight: 500;
-    text-align: center;
-    animation: slideDownFade 0.2s ease-out;
-}
-
-.login-error.show {
-    display: block;
-}
-
-@keyframes slideDownFade {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* User Card (Status Logado) */
-.user-card {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 12px 0;
-}
-
-.user-card p {
-    margin: 0;
-    font-size: 0.95rem;
-    color: var(--text-main);
-}
-
-.user-card strong {
-    color: var(--primary);
-    font-weight: 600;
-}
-
-/* Admin Form Area */
-.admin-form {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    padding: 20px 0;
-}
-
-.admin-form h3 {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: var(--primary);
-    margin: 0;
-}
-
-/* ========================================
-   SISTEMA DE NOTIFICAÇÕES (Toast)
-   ======================================== */
-
-.notification-container {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    max-width: 360px;
-    pointer-events: none;
-}
-
-.toast {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: 12px;
-    font-size: 0.95rem;
-    font-weight: 500;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-    animation: slideInRight 0.3s ease-out;
-    pointer-events: auto;
-    backdrop-filter: blur(8px);
-    border: 1px solid;
-}
-
-/* ✅ Sucesso */
-.toast.success {
-    background: rgba(16, 185, 129, 0.95);
-    color: white;
-    border-color: rgba(16, 185, 129, 0.3);
-}
-
-.toast.success::before {
-    content: "✓";
-    font-size: 1.2rem;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-
-/* ❌ Erro */
-.toast.error {
-    background: rgba(239, 68, 68, 0.95);
-    color: white;
-    border-color: rgba(239, 68, 68, 0.3);
-}
-
-.toast.error::before {
-    content: "✕";
-    font-size: 1.2rem;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-
-/* ⚠️ Aviso */
-.toast.warning {
-    background: rgba(245, 158, 11, 0.95);
-    color: white;
-    border-color: rgba(245, 158, 11, 0.3);
-}
-
-.toast.warning::before {
-    content: "⚠";
-    font-size: 1rem;
-    flex-shrink: 0;
-}
-
-/* ℹ️ Informação */
-.toast.info {
-    background: rgba(59, 130, 246, 0.95);
-    color: white;
-    border-color: rgba(59, 130, 246, 0.3);
-}
-
-.toast.info::before {
-    content: "ℹ";
-    font-size: 1rem;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-
-/* Animações */
-@keyframes slideInRight {
-    from {
-        transform: translateX(400px);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-@keyframes slideOutRight {
-    from {
-        transform: translateX(0);
-        opacity: 1;
-    }
-    to {
-        transform: translateX(400px);
-        opacity: 0;
-    }
-}
-
-.toast.removing {
-    animation: slideOutRight 0.3s ease-in forwards;
-}
-
-/* Modo Dark - Ajustes */
-[data-theme="dark"] .toast {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
-
-/* Responsivo - Mobile */
-@media (max-width: 640px) {
-    .notification-container {
-        top: 10px;
-        right: 10px;
-        left: 10px;
-        max-width: none;
+    if (!contatos || contatos.length === 0) {
+        container.innerHTML = '<div class="contacts-empty">Nenhum contato disponível no momento.</div>';
+        return;
     }
 
-    .toast {
-        font-size: 0.9rem;
-        padding: 12px 14px;
-    }
+    const grid = document.createElement('div');
+    grid.className = 'contacts-grid';
+
+    contatos.forEach(contato => {
+        const card = document.createElement('div');
+        card.className = 'contact-card';
+
+        let telefoneHTML = '';
+        if (contato.telefone) {
+            telefoneHTML = `
+                <div class="contact-info-item">
+                    <strong>📱 Telefone:</strong>
+                    <a href="tel:${contato.telefone}">${contato.telefone}</a>
+                </div>
+            `;
+        }
+
+        card.innerHTML = `
+            <div class="contact-card-header">
+                <h3 class="contact-name">${contato.nome || 'Sem nome'}</h3>
+                <p class="contact-setor">${contato.setor || 'Sem setor'}</p>
+            </div>
+            <div class="contact-card-body">
+                ${contato.descricao ? `<p class="contact-description">${contato.descricao}</p>` : ''}
+                <div class="contact-info">
+                    <div class="contact-info-item">
+                        <strong>📧 Email:</strong>
+                        <a href="mailto:${contato.email}">${contato.email}</a>
+                    </div>
+                    ${telefoneHTML}
+                </div>
+            </div>
+        `;
+
+        grid.appendChild(card);
+    });
+
+    container.appendChild(grid);
 }
+
+// =============================
+inicializar();
