@@ -7,8 +7,7 @@
 // CONFIGURAÇÕES
 // =============================
 
-const API_BASE = "https://agenda-academica-digital.onrender.com";
-
+const API_BASE = "https://agenda-academica-backend-w48m.onrender.com";
 const FERIADOS_ESTADUAIS = [
     { date: "-12-19", name: "Emancipação Política do Paraná", type: "state" }
 ];
