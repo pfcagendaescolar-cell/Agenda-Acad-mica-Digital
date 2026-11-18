@@ -1194,4 +1194,18 @@ function renderizarContatosPublico(contatos) {
 }
 
 // =============================
+// Toggle do menu lateral (sidebar drawer)
+function toggleMenu() {
+    const sidebar = document.getElementById("sidebar");
+    const overlay = document.getElementById("overlay");
+    if (sidebar) sidebar.classList.toggle('active');
+    if (overlay) overlay.classList.toggle('active');
+}
+
+// Fecha o sidebar ao clicar no overlay
+var _overlayEl = document.getElementById("overlay");
+if (_overlayEl) {
+    _overlayEl.onclick = function () { toggleMenu(); };
+}
+
 inicializar();
