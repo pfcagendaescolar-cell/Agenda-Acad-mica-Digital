@@ -76,6 +76,7 @@ let eventosCarregados = [];
 let feriadosNacionais = {};
 let turmaAtual = JSON.parse(localStorage.getItem('ifpr_selected_turma_v1')) || null;
 let turmasCadastradas = [];   
+let erroAoCarregarTurmas = false;
 let liderLogado = false;      
 let eventoEmEdicao = null;
 
@@ -226,15 +227,33 @@ function atualizarInterfaceUsuario() {
 // CARREGAR TURMAS DA API
 // =============================
 async function carregarTurmasDoServidor() {
+    const loading = document.getElementById('turmasLoading');
+    const lista = document.getElementById('turmasList');
+
+    if (loading) loading.style.display = 'flex';
+    if (lista) lista.style.display = 'none';
+
+    erroAoCarregarTurmas = false;
+
     try {
         const res = await fetch(`${API_BASE}/turmas`);
+
         if (!res.ok) throw new Error(`Status ${res.status}`);
+
         turmasCadastradas = await res.json();
+
         return turmasCadastradas;
+
     } catch (err) {
         console.error("Erro ao carregar turmas do servidor:", err);
         turmasCadastradas = [];
+        erroAoCarregarTurmas = true;
+
         return [];
+
+    } finally {
+        if (loading) loading.style.display = 'none';
+        if (lista) lista.style.display = 'flex';
     }
 }
 
@@ -331,10 +350,22 @@ function renderizarTurmas() {
 
     const turmas = getTurmasCadastradas();
 
-    if (turmas.length === 0) {
-        turmasList.innerHTML = "<p style='opacity:0.6; text-align:center;'>Nenhuma turma cadastrada no painel admin.</p>";
-        return;
+   if (turmas.length === 0) {
+    if (erroAoCarregarTurmas) {
+        turmasList.innerHTML = `
+            <p style="opacity:0.7; text-align:center;">
+                Não foi possível carregar as turmas. Atualize a página e tente novamente.
+            </p>
+        `;
+    } else {
+        turmasList.innerHTML = `
+            <p style="opacity:0.6; text-align:center;">
+                Nenhuma turma cadastrada no painel admin.
+            </p>
+        `;
     }
+    return;
+}
 
     turmas.forEach(turma => {
         const btn = document.createElement('button');

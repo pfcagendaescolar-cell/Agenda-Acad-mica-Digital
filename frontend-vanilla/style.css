@@ -2188,3 +2188,27 @@ input:checked+.slider:before {
         padding: 12px 14px;
     }
 }
+
+/* Carregamento das turmas */
+.turmas-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 35px 0;
+    width: 100%;
+}
+
+.spinner {
+    width: 42px;
+    height: 42px;
+    border: 4px solid rgba(50, 160, 65, 0.2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: girar 0.8s linear infinite;
+}
+
+@keyframes girar {
+    to {
+        transform: rotate(360deg);
+    }
+}
